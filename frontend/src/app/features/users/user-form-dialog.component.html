@@ -1,0 +1,92 @@
+@if (submitting()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Saving"></mat-progress-bar>
+}
+
+<h2 mat-dialog-title>{{ isEdit ? 'Edit user' : 'Create user' }}</h2>
+
+<mat-dialog-content>
+  @if (formError(); as message) {
+    <div class="form-error" role="alert">
+      <mat-icon aria-hidden="true">error_outline</mat-icon>
+      <span>{{ message }}</span>
+    </div>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate id="user-form">
+    <div class="row">
+      <mat-form-field appearance="outline">
+        <mat-label>First name</mat-label>
+        <input matInput formControlName="firstName" required maxlength="50" />
+        @if (form.controls.firstName.hasError('required')) {
+          <mat-error>First name is required.</mat-error>
+        } @else if (form.controls.firstName.hasError('maxlength')) {
+          <mat-error>First name cannot exceed 50 characters.</mat-error>
+        } @else if (form.controls.firstName.hasError('server')) {
+          <mat-error>{{ form.controls.firstName.getError('server') }}</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Last name</mat-label>
+        <input matInput formControlName="lastName" required maxlength="50" />
+        @if (form.controls.lastName.hasError('required')) {
+          <mat-error>Last name is required.</mat-error>
+        } @else if (form.controls.lastName.hasError('maxlength')) {
+          <mat-error>Last name cannot exceed 50 characters.</mat-error>
+        } @else if (form.controls.lastName.hasError('server')) {
+          <mat-error>{{ form.controls.lastName.getError('server') }}</mat-error>
+        }
+      </mat-form-field>
+    </div>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Email</mat-label>
+      <input matInput type="email" formControlName="email" required maxlength="254" />
+      @if (form.controls.email.hasError('required')) {
+        <mat-error>Email is required.</mat-error>
+      } @else if (form.controls.email.hasError('email')) {
+        <mat-error>Enter a valid email address.</mat-error>
+      } @else if (form.controls.email.hasError('duplicate')) {
+        <mat-error>This email is already in use.</mat-error>
+      } @else if (form.controls.email.hasError('server')) {
+        <mat-error>{{ form.controls.email.getError('server') }}</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Phone (optional)</mat-label>
+      <input matInput formControlName="phone" maxlength="20" placeholder="+1 555 0100" />
+      <mat-hint>Leave blank to clear.</mat-hint>
+      @if (form.controls.phone.hasError('pattern')) {
+        <mat-error>7-20 digits, optionally with +, spaces, hyphens or parentheses.</mat-error>
+      } @else if (form.controls.phone.hasError('server')) {
+        <mat-error>{{ form.controls.phone.getError('server') }}</mat-error>
+      }
+    </mat-form-field>
+
+    @if (isEdit && data.user; as user) {
+      <dl class="meta">
+        <div>
+          <dt>Created</dt>
+          <dd>{{ user.createdAt | date: 'medium' }}</dd>
+        </div>
+        <div>
+          <dt>Last updated</dt>
+          <dd>{{ user.updatedAt | date: 'medium' }}</dd>
+        </div>
+      </dl>
+    }
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button matButton type="button" [disabled]="submitting()" (click)="cancel()">Cancel</button>
+  <button
+    matButton="filled"
+    type="submit"
+    form="user-form"
+    [disabled]="form.invalid || submitting()"
+  >
+    {{ isEdit ? 'Save' : 'Create' }}
+  </button>
+</mat-dialog-actions>

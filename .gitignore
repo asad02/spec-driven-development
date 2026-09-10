@@ -1,0 +1,19 @@
+# Secrets — local development values, never committed.
+.env
+
+# Java / Gradle build output
+build/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+*.class
+
+# Node / Angular build output
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+
+# OS / editor noise
+.DS_Store
+*.bak
+*.log

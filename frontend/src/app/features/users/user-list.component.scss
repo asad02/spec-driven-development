@@ -1,0 +1,165 @@
+.app-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  &__spacer {
+    flex: 1 1 auto;
+  }
+
+  &__title {
+    font-size: 18px;
+    font-weight: 500;
+  }
+
+  &__user {
+    margin-right: 12px;
+    font-size: 14px;
+    opacity: 0.85;
+  }
+}
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+
+  &__actions {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+}
+
+.search {
+  flex: 1 1 320px;
+  max-width: 460px;
+}
+
+.table-card {
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--mat-sys-surface-container-low);
+  box-shadow: var(--mat-sys-level1);
+}
+
+/* Below 1024px the table scrolls sideways rather than reflowing (§6.4). */
+.table-scroll {
+  overflow-x: auto;
+
+  &--hidden {
+    display: none;
+  }
+
+  table {
+    width: 100%;
+    min-width: 860px;
+  }
+}
+
+.row--clickable {
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--mat-sys-surface-container-high);
+  }
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 24px;
+
+  mat-icon {
+    flex: none;
+    opacity: 0.6;
+  }
+
+  div {
+    flex: 1;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  &__detail {
+    margin: 4px 0 0;
+    font-size: 14px;
+    opacity: 0.75;
+  }
+
+  &--error {
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+}
+
+/* Backend toggle in the app bar. Sits left of the user identity so the routing
+   state reads as part of the app chrome, not as a row-level action. */
+.backend-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 20px;
+
+  &__label {
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+
+  &__served {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+
+  /* The flag and the header disagreeing means routing is broken — make that loud
+     rather than letting it read as a normal state. */
+  &__served--mismatch {
+    color: var(--mat-sys-error, #b3261e);
+    font-weight: 600;
+    opacity: 1;
+  }
+
+  mat-button-toggle-group {
+    --mat-standard-button-toggle-height: 32px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .backend-switch__label,
+  .backend-switch__served {
+    display: none;
+  }
+}
+
+/* Shown in place of Create user when readOnlyRoles covers this operator. */
+.read-only-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  opacity: 0.7;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Without the toggle group beside it, this label needs its own gap from the
+   username that follows. */
+.backend-switch__served--standalone {
+  margin-right: 20px;
+}

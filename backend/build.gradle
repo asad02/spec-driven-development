@@ -1,0 +1,136 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'io.micronaut.application' version '5.0.2'
+    id 'io.micronaut.aot' version '5.0.2'
+}
+
+version = '1.0'
+group = 'com.example.users'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+dependencies {
+    annotationProcessor 'io.micronaut:micronaut-http-validation'
+    annotationProcessor 'io.micronaut.validation:micronaut-validation-processor'
+    annotationProcessor 'io.micronaut.data:micronaut-data-processor'
+    annotationProcessor 'io.micronaut.security:micronaut-security-annotations'
+    annotationProcessor 'io.micronaut.openapi:micronaut-openapi'
+
+    implementation 'io.micronaut:micronaut-http-server-netty'
+    implementation 'io.micronaut:micronaut-jackson-databind'
+    implementation 'io.micronaut:micronaut-management'
+    implementation 'io.micronaut.validation:micronaut-validation'
+    implementation 'io.micronaut.data:micronaut-data-hibernate-jpa'
+    implementation 'io.micronaut.sql:micronaut-jdbc-hikari'
+    implementation 'io.micronaut.flyway:micronaut-flyway'
+    implementation 'io.micronaut.security:micronaut-security-jwt'
+    implementation 'io.micronaut.micrometer:micronaut-micrometer-registry-prometheus'
+    implementation 'io.micronaut.reactor:micronaut-reactor'
+    implementation 'io.swagger.core.v3:swagger-annotations'
+    implementation 'jakarta.persistence:jakarta.persistence-api'
+    implementation 'jakarta.validation:jakarta.validation-api'
+    implementation 'org.mindrot:jbcrypt:0.4'
+
+    // Same feature store as springboot-backend, read directly. ff4j-core is plain
+    // Java with a javax.sql.DataSource constructor, so it carries no Spring baggage
+    // into this build. Both services enforce independently against the same rows;
+    // neither needs the other to be up.
+    implementation 'org.ff4j:ff4j-core:3.0.0-RC1'
+
+    runtimeOnly 'ch.qos.logback:logback-classic'
+    runtimeOnly 'net.logstash.logback:logstash-logback-encoder:8.1'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.yaml:snakeyaml'
+
+    // Micronaut's BOM pins Testcontainers 1.20.6, whose docker-java client speaks a
+    // Docker API version below 1.44 - support for which Docker Engine 29 dropped, so
+    // every container start fails with a 400. Pin forward past the Micronaut BOM.
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.21.3')
+
+    testImplementation 'io.micronaut:micronaut-http-client'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'io.micronaut.test:micronaut-test-junit5'
+}
+
+application {
+    mainClass = 'com.example.users.Application'
+}
+
+micronaut {
+    runtime 'netty'
+    testRuntime 'junit5'
+    processing {
+        incremental true
+        annotations 'com.example.users.*'
+    }
+    aot {
+        optimizeServiceLoading = false
+        convertYamlToJava = false
+        precomputeOperations = true
+        cacheEnvironment = true
+        optimizeClassLoading = true
+        deduceEnvironment = true
+        optimizeNetty = true
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+    options.compilerArgs.add('-Amicronaut.openapi.views.spec=swagger-ui.enabled=true,swagger-ui.theme=flattop')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // Docker Engine 29 raised its minimum API version to 1.40, but the docker-java
+    // client shaded into Testcontainers still negotiates 1.32, so every daemon call
+    // comes back 400 and container startup fails. docker-java reads this only as a
+    // system property - DOCKER_API_VERSION in the environment is not consulted.
+    systemProperty 'api.version', System.getenv('DOCKER_API_VERSION') ?: '1.44'
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat 'full'
+    }
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// NFR: coverage floor on the layers that carry business rules (technical spec §11).
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = 'CLASS'
+            includes = ['com.example.users.service.*', 'com.example.users.controller.*']
+            limit {
+                counter = 'LINE'
+                minimum = 0.80
+            }
+        }
+    }
+}
+
+tasks.named('run') {
+    jvmArgs('-Dmicronaut.environments=dev')
+}

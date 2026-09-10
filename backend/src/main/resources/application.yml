@@ -1,0 +1,151 @@
+micronaut:
+  application:
+    name: user-service
+  server:
+    port: ${SERVER_PORT:8080}
+    cors:
+      enabled: true
+      configurations:
+        ui:
+          allowed-origins:
+            - ${CORS_ALLOWED_ORIGIN:`http://localhost:4200`}
+          allowed-methods:
+            - GET
+            - POST
+            - PUT
+            - OPTIONS
+          allowed-headers:
+            - Authorization
+            - Content-Type
+            - X-Correlation-Id
+          exposed-headers:
+            - X-Correlation-Id
+            - X-Served-By
+  router:
+    static-resources:
+      swagger:
+        paths: classpath:META-INF/swagger
+        mapping: /swagger/**
+      swagger-ui:
+        paths: classpath:META-INF/swagger/views/swagger-ui
+        mapping: /swagger-ui/**
+  security:
+    authentication: bearer
+    endpoints:
+      login:
+        enabled: true
+        path: /api/v1/auth/login
+      logout:
+        enabled: false
+      oauth:
+        enabled: false
+    token:
+      jwt:
+        signatures:
+          secret:
+            generator:
+              # No default on purpose: a deployment without this must fail to start.
+              secret: ${JWT_SIGNATURE_SECRET}
+              jws-algorithm: HS256
+        generator:
+          access-token:
+            expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600}
+    # Default deny. Anonymous patterns are listed explicitly, ahead of the catch-all.
+    intercept-url-map:
+      - pattern: /api/v1/auth/login
+        http-method: POST
+        access:
+          - isAnonymous()
+      - pattern: /health
+        access:
+          - isAnonymous()
+      - pattern: /health/**
+        access:
+          - isAnonymous()
+      - pattern: /swagger/**
+        access:
+          - isAnonymous()
+      - pattern: /swagger-ui/**
+        access:
+          - isAnonymous()
+      - pattern: /**
+        access:
+          - isAuthenticated()
+  metrics:
+    enabled: true
+    export:
+      prometheus:
+        enabled: true
+        step: PT1M
+        descriptions: true
+
+# Instant fields must go on the wire as ISO-8601 strings, not numeric epoch
+# seconds. Angular's date pipe reads a bare number as MILLISECONDS, so numeric
+# timestamps render as 1970, and the UI's own model declares createdAt: string.
+jackson:
+  serialization:
+    write-dates-as-timestamps: false
+
+datasources:
+  default:
+    url: ${DATASOURCE_URL:`jdbc:postgresql://localhost:5432/usersdb`}
+    username: ${DATASOURCE_USERNAME:postgres}
+    password: ${DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    dialect: POSTGRES
+    schema-generate: NONE
+    maximum-pool-size: 10
+    minimum-idle: 2
+
+jpa:
+  default:
+    entity-scan:
+      packages:
+        - com.example.users.entity
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        # Entity/schema drift fails at startup, never silently at runtime.
+        hbm2ddl:
+          auto: validate
+        show_sql: false
+
+flyway:
+  datasources:
+    default:
+      enabled: true
+      locations:
+        - classpath:db/migration
+      # Not `placeholders:` - that binds through Micronaut's @ConfigurationBuilder,
+      # which kebab-cases map keys, so ${seedAdminUsername} in V3 would never match.
+      # `properties` is a flat camelCase-preserving map handed straight to Flyway.
+      properties:
+        flyway.placeholders.seedAdminPasswordHash: ${SEED_ADMIN_PASSWORD_HASH}
+        flyway.placeholders.seedAdminUsername: ${SEED_ADMIN_USERNAME:admin}
+
+endpoints:
+  all:
+    port: ${SERVER_PORT:8080}
+  health:
+    enabled: true
+    sensitive: false
+    details-visible: AUTHENTICATED
+    jdbc:
+      enabled: true
+  info:
+    enabled: true
+    sensitive: true
+  metrics:
+    enabled: true
+    sensitive: true
+  prometheus:
+    enabled: true
+    sensitive: true
+  loggers:
+    enabled: false
+  env:
+    enabled: false
+  beans:
+    enabled: false
+  refresh:
+    enabled: false

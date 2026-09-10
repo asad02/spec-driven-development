@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: springboot-user-service
+
+  datasource:
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/usersdb}
+    username: ${DATASOURCE_USERNAME:postgres}
+    password: ${DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      # Entity/schema drift fails at startup, never silently at runtime.
+      ddl-auto: validate
+    # Spring Boot defaults this to true, which holds the persistence context open
+    # through response rendering and hides lazy-loading bugs. Off, deliberately.
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+    show-sql: false
+
+  flyway:
+    # The Micronaut service owns the users/auth_user migrations against this same
+    # database (technical-spec-springboot §9.1). This service migrates only its own
+    # ff4j tables, under its own history table so the two never interleave.
+    enabled: true
+    locations: classpath:db/ff4j
+    table: flyway_schema_history_ff4j
+    baseline-on-migrate: true
+    # Must be 0. The schema is non-empty (the Micronaut service owns users/auth_user),
+    # so Flyway baselines on first run - and at the default baseline-version of 1 it
+    # would treat V1__ff4j_schema as already applied and silently skip it.
+    baseline-version: 0
+
+  threads:
+    virtual:
+      enabled: true
+
+app:
+  jwt:
+    # No default: a deployment without this must fail to start.
+    secret: ${JWT_SIGNATURE_SECRET}
+    expiration-seconds: ${JWT_ACCESS_TOKEN_EXPIRATION:3600}
+    issuer: user-service
+  cors:
+    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:4200}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      # TQ-9: serve the endpoints at /health and /prometheus rather than under
+      # /actuator, so probes, dashboards and the Postman collection are identical
+      # across both backends. The app owns only /api/**, /swagger-ui and
+      # /v3/api-docs, so nothing collides at the root.
+      base-path: /
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: springboot-user-service
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.example.users: INFO
+    org.hibernate: WARN
+    org.springframework: WARN
+    org.ff4j: INFO

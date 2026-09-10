@@ -1,0 +1,6 @@
+applicationType: default
+defaultPackage: com.example.users
+testFramework: junit
+sourceLanguage: java
+buildTool: gradle
+features: [app-name, flyway, gradle, http-server-netty, jackson-databind, java, java-application, jdbc-hikari, junit, logback, management, micronaut-aot, micronaut-http-validation, netty-server, openapi, postgres, properties, readme, security-jwt, serialization-jackson, testcontainers, validation, yaml]

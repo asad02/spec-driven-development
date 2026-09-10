@@ -1,0 +1,65 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'org.springframework.boot' version '4.1.1'
+}
+
+version = '1.0'
+group = 'com.example.users'
+
+repositories { mavenCentral() }
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(25) }
+}
+
+ext {
+    springdocVersion  = '3.1.1'   // not managed by the Spring Boot BOM
+    ff4jVersion       = '3.0.0-RC1'
+    openFeatureVersion = '1.22.1'
+}
+
+dependencies {
+    implementation platform("org.springframework.boot:spring-boot-dependencies:4.1.1")
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    // Spring Boot 4 moved auto-configuration into per-technology modules: bare
+    // flyway-core on the classpath no longer triggers it, so the starter is required.
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // Feature flags: OpenFeature is the API the application code calls; ff4j is the
+    // provider behind it and owns the PostgreSQL-backed store.
+    implementation "dev.openfeature:sdk:${openFeatureVersion}"
+    // ff4j-core only. Its JdbcFeatureStore takes a plain javax.sql.DataSource, so we
+    // avoid ff4j-store-springjdbc, which is compiled against Spring Framework 6.2 and
+    // would drag a second Spring lineage onto a Spring 7 classpath.
+    implementation "org.ff4j:ff4j-core:${ff4jVersion}"
+
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'net.logstash.logback:logstash-logback-encoder:8.1'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat 'full' }
+}

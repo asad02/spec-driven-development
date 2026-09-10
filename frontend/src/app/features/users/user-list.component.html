@@ -1,0 +1,185 @@
+<mat-toolbar class="app-bar">
+  <span class="app-bar__title">User Management</span>
+  <span class="app-bar__spacer"></span>
+
+  @if (features.canToggle()) {
+  <div class="backend-switch" role="group" aria-label="Backend service">
+    <span class="backend-switch__label">Backend</span>
+    <mat-button-toggle-group
+      hideSingleSelectionIndicator
+      [value]="features.activeBackend()"
+      [disabled]="features.switching()"
+      (change)="switchBackend($event.value)"
+      aria-label="Which service handles API requests"
+    >
+      <mat-button-toggle value="micronaut" matTooltip="Route /api to the Micronaut service">
+        Micronaut
+      </mat-button-toggle>
+      <mat-button-toggle value="springboot" matTooltip="Route /api to the Spring Boot service">
+        Spring Boot
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+    @if (features.servedBy(); as served) {
+      <span
+        class="backend-switch__served"
+        [class.backend-switch__served--mismatch]="served !== features.activeBackend()"
+        matTooltip="Which service actually answered the last request, from the X-Served-By header"
+      >
+        served by {{ served }}
+      </span>
+    }
+  </div>
+  } @else if (features.servedBy(); as served) {
+    <span class="backend-switch__served backend-switch__served--standalone" matTooltip="Switching backends requires an administrator role">
+      served by {{ served }}
+    </span>
+  }
+
+  @if (auth.username(); as username) {
+    <span class="app-bar__user">{{ username }}</span>
+  }
+  <button matButton (click)="logout()">
+    <mat-icon>logout</mat-icon>
+    Sign out
+  </button>
+</mat-toolbar>
+
+<div class="page">
+  <div class="page__actions">
+    <mat-form-field appearance="outline" class="search" subscriptSizing="dynamic">
+      <mat-label>Search users</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input
+        matInput
+        [formControl]="searchControl"
+        placeholder="Name or email"
+        autocomplete="off"
+      />
+      @if (searchControl.value) {
+        <button
+          matIconButton
+          matSuffix
+          type="button"
+          aria-label="Clear search"
+          (click)="clearSearch()"
+        >
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </mat-form-field>
+
+    @if (!features.readOnly() && features.canAccessData()) {
+      <button matButton="filled" (click)="openCreate()">
+        <mat-icon>add</mat-icon>
+        Create user
+      </button>
+    } @else {
+      <span
+        class="read-only-note"
+        [matTooltip]="
+          features.canAccessData()
+            ? 'Your role grants read-only access to user data'
+            : 'Your role does not grant access to user data'
+        "
+      >
+        <mat-icon>lock</mat-icon>
+        {{ features.canAccessData() ? 'Read-only' : 'No access' }}
+      </span>
+    }
+  </div>
+
+  <div class="table-card">
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate" aria-label="Loading users"></mat-progress-bar>
+    }
+
+    @if (errorMessage(); as message) {
+      <div class="state state--error" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <div>
+          <p class="state__title">Could not load users</p>
+          <p class="state__detail">{{ message }}</p>
+        </div>
+        <button matButton="filled" (click)="reload()">Retry</button>
+      </div>
+    }
+
+    @if (isEmpty()) {
+      <div class="state">
+        <mat-icon aria-hidden="true">group_off</mat-icon>
+        @if (isFilteredEmpty()) {
+          <div>
+            <p class="state__title">No users match "{{ appliedSearch() }}"</p>
+            <p class="state__detail">Try a different name or email.</p>
+          </div>
+          <button matButton (click)="clearSearch()">Clear search</button>
+        } @else {
+          <div>
+            <p class="state__title">No users yet</p>
+            <p class="state__detail">Create the first user to get started.</p>
+          </div>
+          <button matButton="filled" (click)="openCreate()">Create user</button>
+        }
+      </div>
+    }
+
+    <div class="table-scroll" [class.table-scroll--hidden]="isEmpty() || errorMessage()">
+      <table
+        mat-table
+        [dataSource]="users()"
+        matSort
+        [matSortActive]="query().sort"
+        [matSortDirection]="query().direction"
+        (matSortChange)="onSort($event)"
+        aria-label="Users"
+      >
+        <ng-container matColumnDef="firstName">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>First name</th>
+          <td mat-cell *matCellDef="let user">{{ user.firstName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="lastName">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Last name</th>
+          <td mat-cell *matCellDef="let user">{{ user.lastName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="email">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Email</th>
+          <td mat-cell *matCellDef="let user">{{ user.email }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="phone">
+          <th mat-header-cell *matHeaderCellDef>Phone</th>
+          <td mat-cell *matCellDef="let user">{{ user.phone || '—' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="createdAt">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>Created</th>
+          <td mat-cell *matCellDef="let user">{{ user.createdAt | date: 'medium' }}</td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr
+          mat-row
+          *matRowDef="let user; columns: displayedColumns"
+          class="row--clickable"
+          tabindex="0"
+          [attr.aria-label]="'Edit ' + user.firstName + ' ' + user.lastName"
+          (click)="openEdit(user)"
+          (keydown.enter)="openEdit(user)"
+          (keydown.space)="openEdit(user); $event.preventDefault()"
+        ></tr>
+      </table>
+    </div>
+
+    <mat-paginator
+      [length]="totalElements()"
+      [pageIndex]="query().page"
+      [pageSize]="query().size"
+      [pageSizeOptions]="pageSizeOptions"
+      showFirstLastButtons
+      aria-label="Select page of users"
+      (page)="onPage($event)"
+    ></mat-paginator>
+  </div>
+</div>

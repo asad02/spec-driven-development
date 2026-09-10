@@ -1,0 +1,19 @@
+# Local development only. None of these values are used in a deployed environment.
+micronaut:
+  security:
+    token:
+      jwt:
+        signatures:
+          secret:
+            generator:
+              secret: dev-only-signature-secret-not-for-any-deployed-environment-32b+
+flyway:
+  datasources:
+    default:
+      placeholders:
+        # BCrypt(cost 12) of "admin123!" — dev credentials, documented in the README.
+        seedAdminPasswordHash: $2a$12$pkivk381t1Fx/ga9zWSsXO7s8f3Wf05jw7nayEOqk8oXrSHsKqkXa
+
+logger:
+  levels:
+    com.example.users: DEBUG

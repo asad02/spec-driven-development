@@ -1,0 +1,22 @@
+# Tests point only at Testcontainers; they must never reach a shared database.
+micronaut:
+  security:
+    token:
+      jwt:
+        signatures:
+          secret:
+            generator:
+              secret: test-only-signature-secret-at-least-256-bits-long-for-hs256!!
+        generator:
+          access-token:
+            expiration: 3600
+flyway:
+  datasources:
+    default:
+      properties:
+        flyway.placeholders.seedAdminPasswordHash: $2a$12$pkivk381t1Fx/ga9zWSsXO7s8f3Wf05jw7nayEOqk8oXrSHsKqkXa
+        flyway.placeholders.seedAdminUsername: admin
+logger:
+  levels:
+    com.example.users: DEBUG
+    io.micronaut.data.query: DEBUG

@@ -1,0 +1,60 @@
+<div class="login-page">
+  <mat-card class="login-card">
+    @if (submitting()) {
+      <mat-progress-bar mode="indeterminate" aria-label="Signing in"></mat-progress-bar>
+    }
+
+    <mat-card-header>
+      <mat-card-title>User Management</mat-card-title>
+      <mat-card-subtitle>Sign in to continue</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (sessionExpired()) {
+        <div class="notice" role="status">
+          <mat-icon aria-hidden="true">schedule</mat-icon>
+          <span>Your session expired. Please sign in again.</span>
+        </div>
+      }
+
+      @if (errorMessage(); as message) {
+        <div class="notice notice--error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon>
+          <span>{{ message }}</span>
+        </div>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <mat-form-field appearance="outline">
+          <mat-label>Username</mat-label>
+          <input
+            matInput
+            formControlName="username"
+            autocomplete="username"
+            autofocus
+            required
+          />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input
+            matInput
+            type="password"
+            formControlName="password"
+            autocomplete="current-password"
+            required
+          />
+        </mat-form-field>
+
+        <button
+          matButton="filled"
+          type="submit"
+          [disabled]="form.invalid || submitting()"
+        >
+          {{ submitting() ? 'Signing in…' : 'Sign in' }}
+        </button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>

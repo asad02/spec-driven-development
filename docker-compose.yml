@@ -1,0 +1,77 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-usersdb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # 15432, deliberately far from Postgres.app's range. Postgres.app allocates
+    # sequentially - 5432, then 55432, 55433, ... - and each server it starts binds
+    # ::1, which wins over Docker's wildcard because localhost resolves ::1 first.
+    # A neighbouring port therefore gets silently shadowed: connections reach
+    # Postgres.app, which has no usersdb, and the app reports that the database does
+    # not exist. Container-to-container traffic still uses db:5432 and is unaffected.
+    ports:
+      - "${DB_HOST_PORT:-15432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-usersdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-usersdb}
+      DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # No default in application.yml on purpose - the app refuses to start without it.
+      JWT_SIGNATURE_SECRET: ${JWT_SIGNATURE_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:-3600}
+      # Flyway substitutes these into V3__seed_admin.sql on first migration.
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD_HASH: ${SEED_ADMIN_PASSWORD_HASH}
+      # nginx proxies /api on the SPA's own origin, so requests are same-origin and
+      # this is only a fallback for anyone calling the API host directly.
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost:8081}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  springboot-backend:
+    build:
+      context: ./springboot-backend
+    environment:
+      # Same database as the Micronaut service: flipping the toggle must show the
+      # same rows, not a different dataset. Flyway here owns only the ff4j tables,
+      # under its own history table (technical-spec-springboot §9.1).
+      DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-usersdb}
+      DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      JWT_SIGNATURE_SECRET: ${JWT_SIGNATURE_SECRET}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:-3600}
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost:8081}
+    ports:
+      - "${SPRINGBOOT_BACKEND_PORT:-8082}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-8081}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+      springboot-backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
