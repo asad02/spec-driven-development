@@ -1,0 +1,22 @@
+@use '@angular/material' as mat;
+
+html {
+  @include mat.theme((
+    color: (primary: mat.$azure-palette, tertiary: mat.$blue-palette),
+    typography: Roboto,
+    density: 0,
+  ));
+  color-scheme: light;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--mat-sys-surface-container-low, #f6f7f9);
+  color: var(--mat-sys-on-surface, #1a1c1e);
+}
+
+/* An administrative tool: denser and plainer than the product UI on purpose. */
+.page { max-width: 1180px; margin: 0 auto; padding: 24px; }
+.app-bar__spacer { flex: 1 1 auto; }

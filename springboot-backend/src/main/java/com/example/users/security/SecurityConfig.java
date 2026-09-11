@@ -26,6 +26,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import tools.jackson.databind.ObjectMapper;
 
 import javax.crypto.spec.SecretKeySpec;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -72,11 +73,10 @@ public class SecurityConfig {
             .formLogin(f -> f.disable())
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
-                // nginx calls this as an auth_request subrequest with no credentials.
-                .requestMatchers(HttpMethod.GET, "/api/v1/features/route").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/features").permitAll()
                 .requestMatchers("/actuator/health/**", "/health/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                // Role checks for /api/v1/admin happen in the controller, which can
+                // distinguish read from write and record refused attempts.
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(new RolesClaimConverter()))
@@ -106,12 +106,24 @@ public class SecurityConfig {
         response.getWriter().write(objectMapper.writeValueAsString(ApiError.of(code, message, correlationId)));
     }
 
+    /**
+     * Accepts a comma-separated list. Every browser origin that talks to this
+     * service needs an entry, including ones that reach it through a same-origin
+     * nginx proxy: the browser still sends `Origin` on POST/PUT/DELETE, and Spring
+     * answers an unlisted origin with 403 "Invalid CORS request" before any
+     * controller runs. A proxy removes the *preflight*, not the Origin header.
+     */
     @Bean
     CorsConfigurationSource corsConfigurationSource(
-            @Value("${app.cors.allowed-origin:http://localhost:4200}") String allowedOrigin) {
+            @Value("${app.cors.allowed-origins:http://localhost:4200}") String allowedOrigins) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(allowedOrigin));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
+        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim).filter(o -> !o.isEmpty()).toList());
+        // DELETE is required by the feature administration API (revoke role, remove
+        // property, delete feature). The product API never uses it — delete is
+        // deliberately 405 there — which is why it was absent and why only a browser
+        // exercised the gap: curl sends no Origin, so CORS never engages.
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Correlation-Id"));
         config.setExposedHeaders(List.of("X-Correlation-Id", "X-Served-By"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

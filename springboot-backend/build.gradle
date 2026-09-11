@@ -15,8 +15,6 @@ java {
 
 ext {
     springdocVersion  = '3.1.1'   // not managed by the Spring Boot BOM
-    ff4jVersion       = '3.0.0-RC1'
-    openFeatureVersion = '1.22.1'
 }
 
 dependencies {
@@ -36,22 +34,17 @@ dependencies {
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
     implementation 'io.micrometer:micrometer-registry-prometheus'
 
-    // Feature flags: OpenFeature is the API the application code calls; ff4j is the
-    // provider behind it and owns the PostgreSQL-backed store.
-    implementation "dev.openfeature:sdk:${openFeatureVersion}"
-    // ff4j-core only. Its JdbcFeatureStore takes a plain javax.sql.DataSource, so we
-    // avoid ff4j-store-springjdbc, which is compiled against Spring Framework 6.2 and
-    // would drag a second Spring lineage onto a Spring 7 classpath.
-    implementation "org.ff4j:ff4j-core:${ff4jVersion}"
-
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'net.logstash.logback:logstash-logback-encoder:8.1'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
+    // Testcontainers 2.x renamed every module with a `testcontainers-` prefix and
+    // moved the packages (org.testcontainers.postgresql). The old coordinates stop
+    // at 1.21.4, so the names the Spring Boot BOM manages at 2.0.5 are these.
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
 }
 
 tasks.withType(JavaCompile).configureEach {

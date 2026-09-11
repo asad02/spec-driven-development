@@ -4,9 +4,10 @@
 |---|---|
 | **Document** | Technical Specification — Spring Boot implementation |
 | **Implements** | [Functional Specification v1.1](functional-spec.md) |
-| **Parallels** | [Technical Specification v1.0 — Micronaut](technical-spec.md) |
-| **Version** | 1.1 |
-| **Date** | 2026-09-10 (v1.0: 2026-09-09) |
+| **Parallels** | [Technical Specification — Micronaut](technical-spec.md) |
+| **Depends on** | [Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-backend.md) |
+| **Version** | 1.3 |
+| **Date** | 2026-09-11 (v1.2: 2026-09-10, v1.0: 2026-09-09) |
 | **Status** | **Implemented** — see §19 for what changed during build |
 
 ---
@@ -131,7 +132,7 @@ hello-micronaut/
 │       │   ├── application-dev.yml
 │       │   ├── application-test.yml
 │       │   ├── logback-spring.xml
-│       │   └── db/ff4j/        # this service's own migrations only — see §5.3
+│       │   └── (no migrations — Micronaut owns the user schema; see §5.3)
 │       └── test/java/com/example/users/
 ├── frontend/                          # unchanged
 ├── postman/                           # unchanged — the parity harness (§11)
@@ -181,12 +182,14 @@ are normative and are not restated here.
 
 ### 5.3 Migrations
 
-**Superseded by §9.1 as built.** The original plan was byte-identical copies of
-the user migrations here; sharing one database made that wrong — two Flyway
-instances over one history table fight. This service migrates **only its own
-ff4j schema**, from `classpath:db/ff4j`, tracked in `flyway_schema_history_ff4j`.
-Micronaut remains the sole owner of `users` and `auth_user`, and this service
-runs `ddl-auto: validate` against them.
+**This service migrates nothing.** Micronaut owns `users` and `auth_user` and
+their history; this service runs `ddl-auto: validate` against them with
+`spring.flyway.enabled: false`.
+
+It previously carried the ff4j schema under a second history table in the same
+database. That schema moved to the
+[feature service](technical-spec-feature-toggle-backend.md) and its own
+`feature-toggle` database at v1.3, and the tables were dropped from `usersdb`.
 
 Placeholder substitution needs specific care in Spring — see §18.3.
 
@@ -419,7 +422,7 @@ resolved deliberately (R-3):
 |---|---|
 | **HTTP port** | Micronaut keeps `8080`; Spring publishes **`8082`** on the host. Container port stays `8080` in both. |
 | **Database** | **Both share `usersdb`.** Flipping the toggle must show the same rows, or it looks like data loss rather than a backend swap. |
-| **Flyway history** | Split by owner, not by database. Micronaut owns `flyway_schema_history` (the `users`/`auth_user` migrations); this service runs Flyway only over `classpath:db/ff4j` under `flyway_schema_history_ff4j`. R-3 is resolved by separate history tables, not separate databases. |
+| **Flyway history** | **Not shared at all.** Micronaut is the only migrator of `usersdb`; this service has Flyway disabled. The feature service migrates its own separate database. R-3 is resolved by there being exactly one writer per database. |
 
 **No profile.** `docker compose up -d` brings up all four services — database,
 both backends and the UI — because the toggle is only meaningful when both
@@ -427,10 +430,10 @@ backends are running. Routing is chosen per request by nginx from the feature
 flag (§19.6), not by which containers are started, so an envsubst template for
 the upstream is unnecessary.
 
-`baseline-version: 0` is required on this service's Flyway configuration. The
-schema is non-empty (Micronaut owns the user tables), so Flyway baselines on
-first run, and at the default `baseline-version` of 1 it would treat
-`V1__ff4j_schema.sql` as already applied and silently skip it.
+No Flyway configuration is needed here at all (§5.3). The baseline subtleties that
+applied while this service carried the ff4j schema now belong to the feature
+service, which owns a database nobody else writes to and therefore needs none of
+them.
 
 ### 9.2 Configuration matrix
 
@@ -726,6 +729,10 @@ Separate databases while both run (§9.1).
 Built and verified on 2026-09-09. Everything below is a correction to what this
 document assumed, discovered by making it run.
 
+**Read §19.1–19.4 as a record of the v1.2 build, not as current state.** The ff4j
+rows there were true when written; at v1.3 the feature store left this service
+entirely (§5.3, §19.5). Where they disagree with §5.3, §5.3 is normative.
+
 ### 19.1 Decisions that changed
 
 | # | Specified | Built | Why |
@@ -788,39 +795,29 @@ the Micronaut backend rather than failing every API call.
 **D-13 is met**: `frontend/` needed no contract change, and the Postman
 collection runs unedited against either backend.
 
-### 19.5 Authorisation (v1.1)
+### 19.5 Authorisation (v1.3 — via the feature service)
 
-This service **owns** the feature store: it creates the ff4j schema, seeds the
-features, and is the only writer. The Micronaut service reads the same rows and
-enforces independently (its spec §17.2).
+This service no longer owns the feature store, holds no ff4j dependency and
+contains no feature rules. It asks
+[`feature-toggle-backend`](technical-spec-feature-toggle-backend.md) and applies
+the answer — the same `FeatureGateClient` shape as the Micronaut service, so the
+two cannot drift.
 
-| Concern | Where it lives |
+| Concern | Implementation |
 |---|---|
-| Which roles may use a feature | `FF4J_ROLES` — ff4j's native ACL, evaluated by `FF4j.check()` |
-| Read-only tier, refusal message, who may administer a flag | `FF4J_CUSTOM_PROPERTIES` — `readOnlyRoles`, `deniedMessage`, `adminRole` |
-| The caller's roles | `SpringAuthorizationsManager` implements ff4j's `AuthorizationsManager` over `SecurityContextHolder`; only `ROLE_*` authorities count |
-| Enforcement | `FeatureAccessInterceptor` on `/api/v1/users**`; the toggle endpoint checks `adminRole` itself |
-| Flag API | OpenFeature SDK for evaluation, ff4j directly for mutation — OpenFeature has no mutation surface by design |
+| Asking | `FeatureGateClient` — JDK `HttpClient`, forwards the caller's own bearer token |
+| Enforcing | `FeatureAccessInterceptor` on `/api/v1/users**` |
+| Caching | Per `(feature, token)`, 10s TTL |
+| Unreachable | **Fails open**, with a warning (functional spec FT-7) |
 
-Seeded features:
+**The asymmetry in v1.1 is gone.** While this service owned the schema it failed
+closed on a missing feature and the Micronaut service failed open. Neither owns it
+now — both are clients, both fail open, and the rule is the same on both sides.
 
-| Feature | `FF4J_ROLES` | Custom properties |
-|---|---|---|
-| `user-data-access` | `ROLE_ADMIN`, `ROLE_VIEWER` | `readOnlyRoles=ROLE_VIEWER`, `deniedMessage` |
-| `use-springboot-backend` | **none, deliberately** | `adminRole=ROLE_ADMIN`, `deniedMessage` |
-
-**Why the routing flag carries no ACL.** nginx evaluates it through an
-*anonymous* `auth_request` subrequest. A role-restricted feature would evaluate
-false for that caller and collapse routing to one backend for everybody. Who may
-*flip* it therefore comes from the `adminRole` custom property, checked in the
-endpoint where a principal exists.
-
-**This service fails closed** on a missing feature — it owns the schema, so an
-absent row means seeding broke. The Micronaut service fails open, because it is
-only a reader. The asymmetry is intentional and documented on both sides.
-
-Seeding **backfills** rather than skips: a feature that predates a policy must
-still acquire its custom properties without losing its enabled state.
+**Removed at v1.3:** `ff4j-core`, the OpenFeature SDK, `Ff4jConfig`, the
+authorizations manager, the whole `admin` package, `FeatureController`, the
+`db/ff4j` migrations and the Flyway configuration that ran them. This service now
+migrates nothing — Micronaut owns the user schema.
 
 ### 19.6 Backend routing (v1.1 correction)
 
@@ -863,3 +860,17 @@ guess: pass the URL explicitly when running outside Docker, and prefer
 
 *Implemented and verified. The definition of done in §11 — 31 of 31 Postman
 assertions against `springboot-backend` with `frontend/` unmodified — is met.*
+
+## 20. Feature toggles (v1.3) — this service is a consumer
+
+The administrative API this section once described has **moved** to
+`feature-toggle-backend`, together with the ff4j store, the guardrails, the audit
+trail and the 20 tests that cover them.
+
+What remains here is a client (§19.5). Two consequences worth stating:
+
+- **The product contract is unchanged.** `/api/v1/users`, `/api/v1/auth` and the
+  error envelope are exactly as before, so D-13 still holds and the 31-assertion
+  Postman suite passes untouched.
+- **`/api/v1/features` is no longer served here.** The proxy pins it to the feature
+  service. Anything still pointing at this service for it will 404.

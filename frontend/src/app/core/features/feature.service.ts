@@ -6,9 +6,10 @@ import { environment } from '../../../environments/environment';
 import { BackendProvider, FeatureState } from './feature.model';
 
 /**
- * Reads and flips the ff4j feature flag that decides which backend nginx proxies
- * /api to. The flag itself lives in PostgreSQL and is evaluated server-side
- * through OpenFeature — this service only reflects and toggles it.
+ * Reads and flips the feature toggle that decides which backend nginx proxies
+ * /api to. The toggle lives in the feature-toggle service, which owns both its
+ * storage and its evaluation — this service only reflects and toggles it over
+ * the API, and knows nothing about how it is stored.
  */
 @Injectable({ providedIn: 'root' })
 export class FeatureService {
@@ -36,7 +37,7 @@ export class FeatureService {
   /** Whether this operator's roles satisfy the user-data-access ACL at all. */
   readonly canAccessData = signal(true);
 
-  /** The roles FF4J_ROLES grants on user-data-access, for the denied message. */
+  /** The roles permitted on user-data-access, for the denied message. */
   readonly dataRoles = signal<string[]>([]);
 
   load(): Observable<FeatureState> {

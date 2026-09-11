@@ -61,10 +61,12 @@ class AuthIT extends AbstractIntegrationTest {
         assertThat(wrongPassword.getStatus().getCode()).isEqualTo(401);
         assertThat(unknownUser.getStatus().getCode()).isEqualTo(401);
 
-        // Same status, same body shape, same text: nothing distinguishes a real
-        // account from an imaginary one.
-        assertThat(unknownUser.getResponse().getBody(String.class))
-                .isEqualTo(wrongPassword.getResponse().getBody(String.class));
+        // Same status, same code, same text: nothing distinguishes a real account
+        // from an imaginary one. The correlation id is deliberately excluded — it is
+        // unique per request by design, and comparing whole bodies would forbid the
+        // envelope from carrying one at all.
+        assertThat(withoutCorrelationId(unknownUser))
+                .isEqualTo(withoutCorrelationId(wrongPassword));
     }
 
     @Test
@@ -81,8 +83,7 @@ class AuthIT extends AbstractIntegrationTest {
         HttpClientResponseException unknown = attemptLogin("nobody-here", "correct-horse");
 
         assertThat(ex.getStatus().getCode()).isEqualTo(401);
-        assertThat(ex.getResponse().getBody(String.class))
-                .isEqualTo(unknown.getResponse().getBody(String.class));
+        assertThat(withoutCorrelationId(ex)).isEqualTo(withoutCorrelationId(unknown));
     }
 
     @Test
@@ -135,5 +136,11 @@ class AuthIT extends AbstractIntegrationTest {
                 HttpRequest.GET("/api/v1/users").bearerAuth(token.getAccessToken()));
 
         assertThat(raw).doesNotContain("password").doesNotContain("$2a$");
+    }
+
+    /** The response body with the per-request correlation id stripped. */
+    private static String withoutCorrelationId(HttpClientResponseException exception) {
+        return exception.getResponse().getBody(String.class).orElse("")
+                .replaceAll("\"correlationId\"\\s*:\\s*\"[^\"]*\",?", "");
     }
 }

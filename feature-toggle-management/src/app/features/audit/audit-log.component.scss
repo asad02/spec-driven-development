@@ -1,0 +1,28 @@
+.app-bar { gap: 12px; }
+.note { font-size: 0.85rem; opacity: 0.7; margin: 0 0 18px; max-width: 70ch; }
+
+.banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 8px; margin: 0 0 20px; font-size: 0.9rem;
+  &--error { background: #fdecea; color: #b3261e; }
+}
+
+.audit {
+  width: 100%;
+  background: var(--mat-sys-surface, #fff);
+  border-radius: 10px;
+  overflow: hidden;
+  td, th { font-size: 0.84rem; }
+  code { font-size: 0.82rem; }
+}
+
+.action {
+  font-size: 0.72rem; letter-spacing: 0.05em; font-weight: 600;
+  padding: 2px 8px; border-radius: 10px;
+  background: var(--mat-sys-surface-container-high, #e2e4e8);
+  /* Refusals are the security-interesting rows; make them findable by scanning. */
+  &--refused { background: #fdecea; color: #b3261e; }
+}
+
+.detail { opacity: 0.8; max-width: 38ch; }
+.muted { opacity: 0.6; font-size: 0.85rem; margin-top: 16px; }

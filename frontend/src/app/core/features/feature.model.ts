@@ -8,7 +8,7 @@ export interface FeatureState {
   store: string;
   /** Caller holds the flag's adminRole custom property. */
   canToggle: boolean;
-  /** Caller's roles satisfy the user-data-access ACL in FF4J_ROLES. */
+  /** Caller's roles satisfy the user-data-access policy. */
   canAccessData: boolean;
   /** Caller's roles are all listed in the readOnlyRoles custom property. */
   readOnly: boolean;

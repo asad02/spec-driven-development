@@ -4,9 +4,9 @@
 |---|---|
 | **Document** | Functional Specification |
 | **Product** | User Management Service (`hello-micronaut`) |
-| **Version** | 1.1 |
-| **Date** | 2026-09-10 (v1.0: 2026-09-01) |
-| **Status** | Implemented — see §13 Change log |
+| **Version** | 1.3 |
+| **Date** | 2026-09-11 (v1.2: 2026-09-10, v1.0: 2026-09-01) |
+| **Status** | Implemented. Feature toggles extracted to their own specification — see §13 |
 
 ---
 
@@ -38,6 +38,9 @@ describes how an operator chooses between them at runtime.
 - **Runtime backend selection** (v1.1): two interchangeable implementations of
   this API run side by side, and an administrator chooses which one serves
   traffic without a redeploy.
+- **Role-governed access** (v1.1): what an operator may read or change is decided
+  per request from their roles. The rules themselves are owned by a separate
+  capability — see [Functional Specification — Feature Toggle](functional-spec-feature-toggle.md).
 
 ### 2.2 Explicitly out of scope for v1
 
@@ -56,7 +59,7 @@ describes how an operator chooses between them at runtime.
 
 | Actor | Description | Capabilities |
 |---|---|---|
-| **Administrator** | An operator holding `ROLE_ADMIN`. | Everything below, plus switching the active backend (FR-10). |
+| **Administrator** | An operator holding `ROLE_ADMIN`. | Everything below, plus switching the active backend (FR-10) and administering feature gates (FR-11). |
 | **Viewer** | An operator holding `ROLE_VIEWER`. | Log in; view and search users. **Cannot** create or update. |
 | **Operator without access** | A login account whose roles grant nothing. Authenticates successfully but is refused every user endpoint. | Log in only. |
 | **User (record)** | A person whose details are stored. **Not** an actor — has no login and never signs in. | — |
@@ -77,6 +80,9 @@ describes how an operator chooses between them at runtime.
 | **Role** | A named capability held by a login account (e.g. `ROLE_ADMIN`). Roles are what authorisation is decided from. |
 | **Feature** | A named gate in configuration that lists the roles allowed to use it, and any policy attached to it (read-only roles, who may administer it). |
 | **Active backend** | Which of the two interchangeable API implementations is currently serving requests. |
+| **Feature console** | The administrative screen for viewing and changing features, their role lists and their policy. |
+| **Protected feature** | A feature the console may not disable or strip of roles, because doing so would remove the ability to administer features or to reach user data. |
+| **Break-glass** | A documented recovery path, outside the application, for restoring access when a misconfiguration has locked everyone out. |
 
 ## 5. Functional requirements
 
@@ -182,15 +188,18 @@ Every user record carries exactly these attributes:
   **read only**. A read-only operator is refused create and update, and the UI
   must not offer them controls that would only be refused.
 - The permitted roles, the read-only roles, and the refusal message are
-  **configuration, not code**. Changing who has access takes effect on the next
-  request, with no rebuild, redeploy or restart of any service.
-- Both backend implementations enforce identical rules from the same
-  configuration, and each enforces independently — neither delegates the
-  decision to the other, and neither needs the other to be running.
-- Where no access policy has been configured at all, a service that does not own
-  that configuration treats the absence as *unrestricted* rather than *denied*,
-  so a configuration outage cannot lock every operator out of a working system.
-  Refusals always come from a policy that exists and excludes the caller.
+  **configuration, not code**, owned by the feature toggle capability
+  ([its specification](functional-spec-feature-toggle.md)). Changing who has access
+  takes effect on the next request, with no rebuild, redeploy or restart.
+- If that capability is unreachable, this product **allows** the request and records
+  that it did (FT-7). Authentication still holds; refusing everything would turn a
+  dependency outage into a total outage.
+- Both backend implementations reach identical conclusions, because both ask the
+  same question of the same capability rather than each interpreting rules of their
+  own.
+- Where no policy has been configured at all, the absence reads as *unrestricted*
+  rather than *denied*. Refusals always come from a policy that exists and excludes
+  the caller.
 
 **FR-10 — Selecting the active backend**
 
@@ -205,6 +214,17 @@ Every user record carries exactly these attributes:
   mis-routed request is visible rather than silent.
 - Switching backends must not change what data is returned. Both read and write
   the same records.
+
+### 5.4 Feature administration — moved
+
+The feature administration console and its change history were specified here at
+v1.2 (FR-11, FR-12). They are now a capability in their own right, with their own
+actors, requirements and acceptance criteria:
+**[Functional Specification — Feature Toggle](functional-spec-feature-toggle.md)**
+(FT-3 and FT-5 respectively).
+
+Nothing was dropped. What changed is ownership: the rules that govern access to
+this product are no longer specified by this product.
 
 ## 6. User interface
 
@@ -300,6 +320,18 @@ human-readable message, and — for validation failures — a per-field breakdow
 - **BR-7** Both backend implementations return byte-identical responses for the
   same request and the same caller, including refusals. A client cannot tell
   which one served it except by the diagnostic header in FR-10.
+- **BR-8** *(v1.2)* **The console cannot lock everyone out.** A change that
+  would leave no operator able to administer features, or would remove every
+  role from the gate controlling user data, is refused — not warned about, and
+  not confirmable. An administrator may still disable such a feature
+  deliberately, but only where a role remains that can re-enable it.
+- **BR-9** *(v1.2)* Features the system depends on to function are **protected**:
+  the console may not delete them, and may not empty their role list. They can
+  be identified as protected in the console so the constraint is visible rather
+  than surprising.
+- **BR-10** *(v1.2)* Every feature change is recorded before it takes effect. If
+  the change cannot be recorded, it is not applied — an unlogged change to
+  access control is worse than a failed one.
 
 ## 9. Non-functional requirements
 
@@ -350,6 +382,7 @@ The release is accepted when all of the following hold:
     non-administrator is refused the switch.
 16. Signing out returns the operator to the login screen, and the signed-in
     screen is not reachable with the Back button.
+*(17–23 moved to [Functional Specification — Feature Toggle](functional-spec-feature-toggle.md) §8 with the capability.)*
 
 ## 11. Assumptions
 
@@ -361,6 +394,13 @@ The release is accepted when all of the following hold:
 - **A-4** Expected scale: tens of thousands of users, single-digit concurrent
   operators.
 - **A-5** No existing user data to migrate; the system starts empty.
+- **A-6** *(v1.2)* Administrators are trusted staff. The console guards against
+  *mistakes* — the accidental lockout in BR-8 — not against a malicious
+  administrator, who by definition already holds the rights it grants.
+- **A-7** *(v1.2)* A break-glass path exists outside the application (direct
+  database access) and is documented for operations. It is the recovery route if
+  a misconfiguration ever does lock everyone out, and it is why BR-8 refuses
+  rather than merely warns.
 
 ## 12. Open questions
 
@@ -371,6 +411,10 @@ The release is accepted when all of the following hold:
 | **OQ-3** | Where is the token held in the browser? `localStorage` survives refresh but is XSS-readable; in-memory is safer but loses the session on every reload. | UI security | `localStorage` for v1, flagged as a security debt. |
 | **OQ-4** | Should update be a full replacement (as specced in FR-3) or support partial patches? | API contract | Full replacement only. |
 | **OQ-5** | Is deletion truly out of scope, or deferred to v1.1? | Data model | Out of scope; no `deleted` column reserved. |
+| **OQ-6** *(v1.2)* | Should the console be reachable in production at all, or only in lower environments? | FR-11, deployment | Disabled in production for v1.2; revisit once the audit trail (FR-12) is proven. |
+| ~~**OQ-7**~~ | ~~Should creating and deleting whole features be in scope?~~ | — | **Answered: in scope.** Create, update and delete are all required. The caveat that a flag with no reader does nothing is handled in the UI (FR-11) rather than by forbidding creation. |
+| **OQ-8** *(v1.2)* | How long is feature-change history retained, and who may read it? | FR-12, storage | Retained indefinitely at this volume; readable by administrators only. Revisit if it becomes large. |
+| **OQ-9** *(v1.2)* | Does a second administrator need to approve a change to an access-control feature (four-eyes)? | FR-11, governance | Not in v1.2. A-6 assumes trusted administrators; revisit if that stops holding. |
 
 ---
 
@@ -378,6 +422,58 @@ The release is accepted when all of the following hold:
 treated as final; §12 answers may change the technical design.*
 
 ## 13. Change log
+
+### v1.3 — 2026-09-11 · feature toggles extracted
+
+The access rules this product relies on became a capability with its own
+specification, service and database.
+
+| Change | Sections |
+|---|---|
+| **FR-11 and FR-12 moved out.** The administration console and change history are now FT-3 and FT-5 in [Functional Specification — Feature Toggle](functional-spec-feature-toggle.md). §5.4 and the console screen here are a pointer, not a duplicate. | §2.1, §5.4, §6 |
+| **FR-9 unchanged in behaviour, changed in ownership.** Roles still decide access per request; the rules are owned elsewhere and asked for, not interpreted locally. | §5.3 FR-9 |
+| **Availability rule stated.** If the capability is unreachable, this product allows authenticated requests and records that it did. | §5.3 FR-9, FT-7 |
+
+**Why the split.** Both backends previously read the same tables and each
+re-implemented the same rules — two implementations of one policy, and a schema two
+services were coupled to. One owner, one store, one place to change a rule.
+
+**Acceptance criteria 17–23** now belong to the feature toggle specification and
+were removed here rather than duplicated. 1–16 are unchanged and still describe
+this product.
+
+### v1.2 — 2026-09-10 · specified, not yet built
+
+Adds an administrative console for the feature gates that v1.1 introduced.
+
+| Change | Sections |
+|---|---|
+| **Feature administration console.** An administrator signs in with their existing account and manages features, their role lists and their policy. Disabled by default, enabled per environment. | §2.1, §4, §5.4 FR-11, §6.4, §10.17–18, §10.21 |
+| **Feature change history.** Every change — and every refused attempt — is recorded with operator, timestamp and before/after values, append-only. | §5.4 FR-12, §8 BR-10, §10.20 |
+| **Lockout protection.** A change that would leave nobody able to administer features, or strip every role from the gate controlling user data, is refused rather than confirmed. Features the system depends on are marked protected. | §8 BR-8, BR-9, §10.19, §11 A-6, A-7 |
+
+**Why the guardrails are specified before the screen.** The console edits the
+rules that decide who may reach user data — including the rules that grant
+access to the console itself. The current configuration makes that concrete: one
+feature gates all user data and its role list has two entries. Emptying that list
+from a console, with no guardrail, would lock every operator out of the data with
+no route back through the application. BR-8 makes that refusable rather than
+recoverable-after-the-fact, and A-7 records that the recovery path is direct
+database access.
+
+**Scope settled after review.** Creating and deleting features **are** in scope
+(OQ-7, answered). The console is a **separate application on its own address**
+rather than a screen in the product UI, so it can be withheld or taken down
+independently. Access is exactly two roles — administrators manage, read-only
+operators view — and no new role names are introduced.
+
+**Still out of scope.** Four-eyes approval (OQ-9) — A-6 assumes trusted
+administrators.
+
+**Not specified here.** The application's stack, its port, the shape of its API
+and how it is deployed are technology decisions — see
+[Technical Specification — Feature Toggle Management](technical-spec-feature-toggle-management.md).
+This section defines only the behaviour it must exhibit.
 
 ### v1.1 — 2026-09-10
 

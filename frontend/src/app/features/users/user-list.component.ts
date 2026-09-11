@@ -181,7 +181,7 @@ export class UserListComponent implements OnInit {
   }
 
   /**
-   * Flips the ff4j flag, then reloads. The reload is the point: it proves the
+   * Flips the flag, then reloads. The reload is the point: it proves the
    * request was served by the newly selected backend rather than just recolouring
    * a control.
    */

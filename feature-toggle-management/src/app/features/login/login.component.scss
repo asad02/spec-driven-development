@@ -1,0 +1,19 @@
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+
+  &__card { width: min(420px, 100%); overflow: hidden; }
+
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    color: var(--mat-sys-error, #b3261e);
+    font-size: 0.9rem;
+  }
+}
+
+form { display: flex; flex-direction: column; gap: 4px; padding-top: 12px; }

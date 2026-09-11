@@ -1,6 +1,6 @@
 package com.example.users.exception;
 
-/** Raised when the caller's roles do not satisfy a feature's ff4j ACL or policy. */
+/** Raised when the caller's roles do not satisfy a feature's policy. */
 public class AccessDeniedForFeatureException extends RuntimeException {
 
     private final String feature;

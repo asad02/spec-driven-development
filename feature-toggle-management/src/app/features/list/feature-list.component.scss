@@ -1,0 +1,77 @@
+.app-bar {
+  gap: 12px;
+  &__user { font-size: 0.85rem; display: flex; flex-direction: column; line-height: 1.2; }
+  &__role { font-size: 0.68rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em; }
+}
+
+.banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 8px; margin: 0 0 20px; font-size: 0.9rem;
+  &--info { background: var(--mat-sys-surface-container, #eceef1); }
+  &--error { background: #fdecea; color: #b3261e; }
+}
+
+.section {
+  font-size: 1rem; font-weight: 500; margin: 28px 0 12px;
+  display: flex; align-items: center; gap: 8px;
+  &__count {
+    font-size: 0.75rem; background: var(--mat-sys-surface-container-high, #e2e4e8);
+    border-radius: 10px; padding: 1px 8px;
+  }
+}
+
+.create {
+  margin-bottom: 8px;
+  /* Room for the field hint, which otherwise overlaps the note beneath. */
+  &__form { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; padding-bottom: 8px; }
+  &__desc { flex: 1 1 320px; }
+  &__note { font-size: 0.8rem; opacity: 0.7; margin: 12px 0 0; }
+}
+
+.feature {
+  padding: 16px; margin-bottom: 12px;
+  /* An off feature should read as off at a glance, not require reading the toggle. */
+  &--off { opacity: 0.72; }
+
+  &__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  &__id { display: flex; align-items: center; gap: 10px; code { font-size: 0.95rem; font-weight: 500; } }
+  &__actions { display: flex; align-items: center; gap: 8px; }
+  &__desc { margin: 8px 0 0; font-size: 0.88rem; opacity: 0.8; }
+  &__row { display: flex; gap: 16px; margin-top: 14px; align-items: baseline; flex-wrap: wrap; }
+  &__label {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em;
+    opacity: 0.6; min-width: 110px;
+  }
+}
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+  background: #fff4e5; color: #8a5300; border-radius: 10px; padding: 2px 8px;
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+}
+
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--mat-sys-outline-variant, #c9ccd1);
+  background: transparent; border-radius: 14px; padding: 3px 11px;
+  font: inherit; font-size: 0.78rem; cursor: pointer;
+  mat-icon { font-size: 15px; width: 15px; height: 15px; }
+  &--on { background: #e6f0fb; border-color: #9dc2ea; color: #14457a; }
+  &:not(&--on) { opacity: 0.65; }
+}
+span.chip { cursor: default; }
+
+.props { display: flex; flex-direction: column; gap: 4px; }
+.prop {
+  display: flex; gap: 10px; font-size: 0.82rem;
+  code { min-width: 150px; opacity: 0.85; }
+}
+
+.state {
+  font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6;
+  &--on { color: #1f7a4d; opacity: 1; font-weight: 600; }
+}
+
+.muted { opacity: 0.6; font-size: 0.85rem; }

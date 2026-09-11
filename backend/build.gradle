@@ -40,12 +40,6 @@ dependencies {
     implementation 'jakarta.validation:jakarta.validation-api'
     implementation 'org.mindrot:jbcrypt:0.4'
 
-    // Same feature store as springboot-backend, read directly. ff4j-core is plain
-    // Java with a javax.sql.DataSource constructor, so it carries no Spring baggage
-    // into this build. Both services enforce independently against the same rows;
-    // neither needs the other to be up.
-    implementation 'org.ff4j:ff4j-core:3.0.0-RC1'
-
     runtimeOnly 'ch.qos.logback:logback-classic'
     runtimeOnly 'net.logstash.logback:logstash-logback-encoder:8.1'
     runtimeOnly 'org.postgresql:postgresql'

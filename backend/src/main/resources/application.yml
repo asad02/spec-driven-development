@@ -86,6 +86,12 @@ jackson:
   serialization:
     write-dates-as-timestamps: false
 
+app:
+  # Where access decisions come from. This service holds no feature rules.
+  feature-service:
+    url: ${FEATURE_SERVICE_URL:`http://feature-toggle-backend:8080`}
+    cache-ttl-seconds: ${FEATURE_SERVICE_CACHE_TTL:10}
+
 datasources:
   default:
     url: ${DATASOURCE_URL:`jdbc:postgresql://localhost:5432/usersdb`}

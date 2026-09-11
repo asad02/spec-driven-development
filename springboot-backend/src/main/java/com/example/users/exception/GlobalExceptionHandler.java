@@ -10,7 +10,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -34,6 +40,9 @@ public class GlobalExceptionHandler {
                 .body(new ApiError("ACCESS_DENIED", ex.getMessage(), correlationId(),
                         List.of(new ApiError.FieldError("feature", ex.getFeature()))));
     }
+
+
+
 
     @ExceptionHandler(UserNotFoundException.class)
     ResponseEntity<ApiError> handleNotFound(UserNotFoundException ex) {
@@ -76,6 +85,62 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoHandlerFoundException.class)
     ResponseEntity<ApiError> handleNoHandler(NoHandlerFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiError.of("NOT_FOUND", "No such resource.", correlationId()));
+    }
+
+    /*
+     * Spring's own exceptions must be mapped explicitly. The catch-all below would
+     * otherwise turn every one of them into a 500 — so an unsupported method read as
+     * a server fault rather than 405, breaking parity with the Micronaut service and
+     * the contract in functional spec §7.
+     */
+
+    /**
+     * A path or query value that cannot be converted — most often a malformed UUID.
+     * The caller sent something unusable; that is a 400, and the Micronaut service
+     * answers the same way.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ApiError("INVALID_PARAMETER",
+                        "'" + ex.getName() + "' is not a valid value.", correlationId(),
+                        List.of(new ApiError.FieldError(ex.getName(), "is not a valid value"))));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    ResponseEntity<ApiError> handleMissingParameter(MissingServletRequestParameterException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ApiError("INVALID_PARAMETER",
+                        "'" + ex.getParameterName() + "' is required.", correlationId(),
+                        List.of(new ApiError.FieldError(ex.getParameterName(), "is required"))));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ApiError> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiError.of("METHOD_NOT_ALLOWED",
+                        ex.getMethod() + " is not supported on this resource.", correlationId()));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    ResponseEntity<ApiError> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ApiError.of("UNSUPPORTED_MEDIA_TYPE",
+                        "This endpoint accepts application/json.", correlationId()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        // A malformed body is the client's mistake, not the server's.
+        return ResponseEntity.badRequest()
+                .body(ApiError.of("MALFORMED_REQUEST",
+                        "The request body could not be read as JSON.", correlationId()));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ApiError> handleNoResource(NoResourceFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiError.of("NOT_FOUND", "No such resource.", correlationId()));
     }

@@ -7,6 +7,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Creates the `feature-toggle` database on a fresh volume; the image's
+      # entrypoint only creates POSTGRES_BD's single database itself.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     # 15432, deliberately far from Postgres.app's range. Postgres.app allocates
     # sequentially - 5432, then 55432, 55433, ... - and each server it starts binds
     # ::1, which wins over Docker's wildcard because localhost resolves ::1 first.
@@ -37,8 +40,31 @@ services:
       # nginx proxies /api on the SPA's own origin, so requests are same-origin and
       # this is only a fallback for anyone calling the API host directly.
       CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost:8081}
+      # Access decisions come from the feature service; this service holds no rules.
+      FEATURE_SERVICE_URL: ${FEATURE_SERVICE_URL:-http://feature-toggle-backend:8080}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      feature-toggle-backend:
+        condition: service_healthy
+
+  feature-toggle-backend:
+    build:
+      context: ./feature-toggle-backend
+    environment:
+      # Its own database, separate from usersdb.
+      DATASOURCE_URL: jdbc:postgresql://db:5432/feature-toggle
+      DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Shared with the product backends: this service validates their tokens.
+      JWT_SIGNATURE_SECRET: ${JWT_SIGNATURE_SECRET}
+      # 8081 is the product UI, which reads the toggle directly; 8083 is the admin console.
+      CORS_ALLOWED_ORIGINS: ${FEATURE_CORS_ORIGINS:-http://localhost:8083,http://localhost:8081,http://localhost:4300}
+      FEATURE_ADMIN_ENABLED: ${FEATURE_ADMIN_ENABLED:-true}
+    ports:
+      - "${FEATURE_BACKEND_PORT:-8084}:8080"
     depends_on:
       db:
         condition: service_healthy
@@ -48,14 +74,17 @@ services:
       context: ./springboot-backend
     environment:
       # Same database as the Micronaut service: flipping the toggle must show the
-      # same rows, not a different dataset. Flyway here owns only the ff4j tables,
-      # under its own history table (technical-spec-springboot §9.1).
+      # same rows, not a different dataset. Flyway is disabled here — Micronaut owns
+      # the user schema, and the toggle schema lives in the feature service's own
+      # database (technical-spec-springboot §9.1).
       DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-usersdb}
       DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
       DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       JWT_SIGNATURE_SECRET: ${JWT_SIGNATURE_SECRET}
       JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:-3600}
-      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost:8081}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8081,http://localhost:8083}
+      # Access decisions come from the feature service; this service holds no rules.
+      FEATURE_SERVICE_URL: ${FEATURE_SERVICE_URL:-http://feature-toggle-backend:8080}
     ports:
       - "${SPRINGBOOT_BACKEND_PORT:-8082}:8080"
     depends_on:
@@ -71,6 +100,17 @@ services:
       backend:
         condition: service_healthy
       springboot-backend:
+        condition: service_healthy
+      feature-toggle-backend:
+        condition: service_healthy
+
+  feature-toggle-management:
+    build:
+      context: ./feature-toggle-management
+    ports:
+      - "${FEATURE_UI_PORT:-8083}:80"
+    depends_on:
+      feature-toggle-backend:
         condition: service_healthy
 
 volumes:

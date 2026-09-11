@@ -5,8 +5,9 @@
 | **Document** | Technical Specification |
 | **Implements** | [Functional Specification v1.1](functional-spec.md) |
 | **Sibling** | [Technical Specification — Spring Boot](technical-spec-springboot.md) |
-| **Version** | 1.1 |
-| **Date** | 2026-09-10 (v1.0: 2026-09-01) |
+| **Depends on** | [Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-backend.md) |
+| **Version** | 1.2 |
+| **Date** | 2026-09-11 (v1.1: 2026-09-10, v1.0: 2026-09-01) |
 | **Status** | **Implemented** — see §17 for what was built and what changed |
 
 ---
@@ -128,7 +129,7 @@ Two builds, two toolchains, two Dockerfiles, no shared build files. Deleting
 | Validation | `micronaut-validation` (Jakarta Bean Validation) | |
 | Security | `micronaut-security-jwt` | |
 | Password hashing | BCrypt (`org.mindrot:jbcrypt`) | Cost factor 12. |
-| Feature flags / ACL | `org.ff4j:ff4j-core` (v1.1) | Plain Java, no Spring. Reads the shared feature store; see §17.2. |
+| Access decisions | **HTTP client to `feature-toggle-backend`** | No flag library of any kind in this build; see §17.2. |
 | API docs | `micronaut-openapi` + swagger-ui | |
 | Observability | `micronaut-management`, `micronaut-micrometer-registry-prometheus` | |
 | Logging | Logback + `logstash-logback-encoder` | JSON in deployed envs. |
@@ -615,33 +616,30 @@ assumed, or behaviour added in v1.1.
 | §13 | Image built via the plugin's `dockerBuild` or a hand-written Dockerfile | **Hand-written, copying `buildLayers` output** | The runner jar is not self-contained: its manifest `Class-Path` points at sibling `libs/` and `resources/` directories. |
 | §9.1 | `postgres` + `pgadmin` | **`postgres` only**, plus the sibling service and the UI | pgadmin was never needed; see §17.4 for the host port. |
 
-### 17.2 Authorisation (v1.1)
+### 17.2 Authorisation (v1.2 — via the feature service)
 
-This service does **not** own the feature store — the Spring Boot service creates
-and migrates those tables — but it enforces against them independently. Neither
-service consults the other, and neither needs the other running to decide access.
+This service contains **no feature-flag library and no feature rules**. It asks
+[`feature-toggle-backend`](technical-spec-feature-toggle-backend.md) and applies
+the answer.
 
 | Concern | Implementation |
 |---|---|
-| Roles of the caller | `MicronautAuthorizationsManager` implements ff4j's `AuthorizationsManager`, reading `SecurityService`. Only `ROLE_*` authorities count. |
-| ACL | `FF4J_ROLES` rows on the `user-data-access` feature, evaluated by `FF4j.check()`. |
-| Read-only tier, refusal message | `FF4J_CUSTOM_PROPERTIES` — `readOnlyRoles`, `deniedMessage`. |
-| Enforcement point | `FeatureAccessFilter`, a `@ServerFilter` on `/api/v1/users` and `/api/v1/users/**`. |
-| Refusal | `AccessDeniedForFeatureException` → `403 ACCESS_DENIED` in the standard envelope. |
+| Asking | `FeatureGateClient` — JDK `HttpClient`, forwards the caller's own bearer token so the roles evaluated are theirs |
+| Enforcing | `FeatureAccessFilter`, a `@ServerFilter` on `/api/v1/users` and `/api/v1/users/**` |
+| Refusal | `AccessDeniedForFeatureException` → `403 ACCESS_DENIED` in the standard envelope |
+| Caching | Per `(feature, token)`, 10s TTL. Keyed by token as well as feature — one entry per feature would leak one operator's rights to another |
+| Unreachable | **Fails open**, with a warning (functional spec FT-7) |
 
-**Unconfigured means unrestricted, deliberately.** If the feature row or the
-whole table is absent, this service allows and logs a warning rather than
-denying. It is a reader, not the owner; a feature-store outage must not lock
-every operator out of a service whose authentication still works. The owning
-service fails the other way — see the sibling spec §19. Denials always come from
-a policy that exists and excludes the caller, never from a failed lookup.
+**Why fail open.** Authentication has already succeeded by this point. Refusing
+every request would convert a feature-service outage into a total outage of this
+service, which is the worse failure for trusted operators. Denials come only from a
+policy that exists and excludes the caller.
 
-**ff4j gets its own connection pool, built inline and never registered as a
-bean.** Micronaut Data wraps *every* `DataSource` bean with contextual-connection
-advice whose `close()` throws outside a `@Connectable`/`@Transactional` scope,
-and ff4j closes every connection it opens. `DataSourceResolver` does not unwrap
-far enough. A two-connection read-only Hikari pool constructed inside the factory
-method is the only arrangement that no bean-created listener can intercept.
+**What was removed at v1.2.** `ff4j-core`, the ff4j factory, the authorizations
+manager, the local feature-access service, and the inline Hikari pool they needed.
+The awkward workaround that pool existed for — Micronaut Data wrapping every
+`DataSource` bean in contextual-connection advice whose `close()` throws outside a
+transaction — went with it.
 
 ### 17.3 Diagnostics added in v1.1
 
@@ -695,3 +693,17 @@ clear. Container-to-container traffic uses `db:5432` and was never affected.
 *Implemented and verified against Functional Specification v1.1. The open
 questions in §16 that remain open are TQ-2, TQ-3 and TQ-5; TQ-1 (Java 25) is
 closed by §17.1.*
+
+## 18. Feature toggles (v1.2) — this service is a consumer
+
+The feature capability lives in its own service and its own database
+([backend spec](technical-spec-feature-toggle-backend.md),
+[functional spec](functional-spec-feature-toggle.md)). This service:
+
+- holds **no** ff4j dependency, no flag rules and no feature tables;
+- asks for a decision per request, cached briefly (§17.2);
+- continues serving authenticated traffic if the feature service is down.
+
+`usersdb` contains three tables — `users`, `auth_user`, `flyway_schema_history`.
+The `FF4J_*` tables that once shared it were migrated out to the `feature-toggle`
+database and dropped from here.

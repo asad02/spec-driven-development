@@ -1,0 +1,130 @@
+<mat-toolbar class="app-bar">
+  <span>Feature Toggle Management</span>
+  <span class="app-bar__spacer"></span>
+  <a matButton routerLink="/audit"><mat-icon>history</mat-icon> Change history</a>
+  @if (auth.username(); as username) {
+    <span class="app-bar__user">
+      {{ username }}
+      <span class="app-bar__role">{{ auth.isAdmin() ? 'administrator' : 'read-only' }}</span>
+    </span>
+  }
+  <button matButton (click)="logout()"><mat-icon>logout</mat-icon> Sign out</button>
+</mat-toolbar>
+
+@if (loading()) { <mat-progress-bar mode="indeterminate" /> }
+
+<div class="page">
+  @if (!auth.isAdmin()) {
+    <p class="banner banner--info">
+      <mat-icon>visibility</mat-icon>
+      You have read-only access. Controls that would change a feature are not shown.
+    </p>
+  }
+
+  @if (errorMessage(); as message) {
+    <p class="banner banner--error" role="alert"><mat-icon>error_outline</mat-icon> {{ message }}</p>
+  }
+
+  @if (auth.isAdmin()) {
+    <mat-card class="create">
+      <mat-card-header><mat-card-title>Create a feature</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="createForm" (ngSubmit)="create()" class="create__form">
+          <mat-form-field appearance="outline">
+            <mat-label>Feature id</mat-label>
+            <input matInput formControlName="uid" placeholder="new-checkout-flow" />
+            <mat-hint>Letters, digits, . - _</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="create__desc">
+            <mat-label>Description</mat-label>
+            <input matInput formControlName="description" />
+          </mat-form-field>
+          <button matButton="filled" type="submit" [disabled]="createForm.invalid || creating()">
+            <mat-icon>add</mat-icon> Create
+          </button>
+        </form>
+        <p class="create__note">
+          A new feature does nothing until code reads it. Creating a toggle here does not
+          change behaviour on its own.
+        </p>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <h2 class="section">Features <span class="section__count">{{ total() }}</span></h2>
+
+  @for (feature of features(); track feature.uid) {
+    <mat-card class="feature" [class.feature--off]="!feature.enabled">
+      <div class="feature__head">
+        <div class="feature__id">
+          <code>{{ feature.uid }}</code>
+          @if (feature.isProtected) {
+            <span class="badge" [matTooltip]="'Protected: ' + feature.protectedReason">
+              <mat-icon>shield</mat-icon> protected
+            </span>
+          }
+        </div>
+
+        <div class="feature__actions">
+          @if (auth.isAdmin()) {
+            <mat-slide-toggle
+              [checked]="feature.enabled"
+              (change)="toggle(feature, $event.checked)"
+              [matTooltip]="feature.enabled ? 'Turn off' : 'Turn on'"
+            >{{ feature.enabled ? 'On' : 'Off' }}</mat-slide-toggle>
+
+            <button matIconButton
+              [disabled]="feature.isProtected"
+              [matTooltip]="feature.isProtected ? 'Protected features cannot be deleted' : 'Delete'"
+              (click)="remove(feature)">
+              <mat-icon>delete_outline</mat-icon>
+            </button>
+          } @else {
+            <span class="state" [class.state--on]="feature.enabled">
+              {{ feature.enabled ? 'On' : 'Off' }}
+            </span>
+          }
+        </div>
+      </div>
+
+      @if (feature.description) { <p class="feature__desc">{{ feature.description }}</p> }
+
+      <div class="feature__row">
+        <span class="feature__label">Roles allowed</span>
+        <div class="chips">
+          @for (role of roles; track role) {
+            @if (auth.isAdmin()) {
+              <button
+                class="chip"
+                [class.chip--on]="hasRole(feature, role)"
+                type="button"
+                (click)="toggleRole(feature, role, !hasRole(feature, role))"
+                [matTooltip]="hasRole(feature, role) ? 'Revoke ' + role : 'Grant ' + role"
+              >
+                <mat-icon>{{ hasRole(feature, role) ? 'check' : 'add' }}</mat-icon> {{ role }}
+              </button>
+            } @else {
+              @if (hasRole(feature, role)) { <span class="chip chip--on">{{ role }}</span> }
+            }
+          }
+          @if (!feature.roles.length && !auth.isAdmin()) {
+            <span class="muted">No roles — unrestricted</span>
+          }
+        </div>
+      </div>
+
+      @if (propertyEntries(feature).length) {
+        <div class="feature__row">
+          <span class="feature__label">Properties</span>
+          <div class="props">
+            @for (prop of propertyEntries(feature); track prop.key) {
+              <div class="prop"><code>{{ prop.key }}</code><span>{{ prop.value }}</span></div>
+            }
+          </div>
+        </div>
+      }
+    </mat-card>
+  } @empty {
+    @if (!loading()) { <p class="muted">No features defined.</p> }
+  }
+</div>

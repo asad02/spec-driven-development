@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "User Management Service",
-    "description": "Micronaut user-management API.\n\nRUN ORDER MATTERS: 'Log in' must run first \u2014 it captures the bearer token into the\n`accessToken` collection variable, which every other request inherits via collection-level\nauth. 'Create user' then stores `userId` and `newEmail` for the requests after it.\n\nPoint `baseUrl` at http://localhost:8080 (backend directly) or http://localhost:8081\n(through nginx, the same origin the SPA uses). Both serve these routes.\n\nSafe to run repeatedly: each run creates a user with a timestamped email.\n\n`opsUrl` is separate from `baseUrl` on purpose: nginx forwards only /api/, so /health and /prometheus must address the backend directly even when the rest of the collection runs through the proxy.",
+    "name": "User Management System",
+    "description": "Every endpoint across the system: the two interchangeable product backends, and the\nfeature toggle service that decides who may use them.\n\nRUN ORDER MATTERS. Folder 1 signs in as all three operators and stores their tokens;\neverything after it depends on those variables. Folder 5 creates a feature the later\nrequests in that folder use, and deletes it at the end.\n\nTHREE BASE URLS:\n  baseUrl    the product API   :8080 micronaut | :8082 spring boot | :8081 through nginx\n  opsUrl     health / metrics  always a product backend, never the proxy\n  featureUrl the feature service :8084 \u2014 it owns the toggles and the access rules\n\nSafe to run repeatedly: created users and features carry a timestamp and are cleaned up.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -9,7 +9,7 @@
     "bearer": [
       {
         "key": "token",
-        "value": "{{accessToken}}",
+        "value": "{{adminToken}}",
         "type": "string"
       }
     ]
@@ -26,17 +26,52 @@
       "type": "string"
     },
     {
-      "key": "username",
+      "key": "featureUrl",
+      "value": "http://localhost:8084",
+      "type": "string"
+    },
+    {
+      "key": "adminUser",
       "value": "admin",
       "type": "string"
     },
     {
-      "key": "password",
+      "key": "adminPass",
       "value": "admin123!",
       "type": "string"
     },
     {
-      "key": "accessToken",
+      "key": "viewerUser",
+      "value": "viewer",
+      "type": "string"
+    },
+    {
+      "key": "viewerPass",
+      "value": "viewer123!",
+      "type": "string"
+    },
+    {
+      "key": "noAccessUser",
+      "value": "noaccess",
+      "type": "string"
+    },
+    {
+      "key": "noAccessPass",
+      "value": "noaccess123!",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "viewerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "noAccessToken",
       "value": "",
       "type": "string"
     },
@@ -49,14 +84,25 @@
       "key": "newEmail",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "featureUid",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "takenEmail",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
     {
-      "name": "1 \u00b7 Auth",
+      "name": "1 \u00b7 Authentication",
+      "description": "Signs in all three operators. Every later folder depends on these tokens.",
       "item": [
         {
-          "name": "Log in",
+          "name": "Sign in \u2014 administrator",
           "request": {
             "method": "POST",
             "header": [
@@ -68,7 +114,7 @@
             "url": "{{baseUrl}}/api/v1/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"{{adminPass}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -78,7 +124,7 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "Exchanges the seeded operator credentials for an HS256 bearer token (1h). Stores it as `accessToken`."
+            "description": "Full access. Stores `adminToken`, which collection-level auth uses by default."
           },
           "response": [],
           "event": [
@@ -89,16 +135,17 @@
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "const b = pm.response.json();",
-                  "pm.test('returns an access_token', () => pm.expect(b.access_token).to.be.a('string').and.not.empty);",
-                  "pm.collectionVariables.set('accessToken', b.access_token);",
-                  "console.log('token captured, ' + b.access_token.length + ' chars');"
+                  "pm.test('returns a bearer token', () => { pm.expect(b.access_token).to.be.a('string').and.not.empty; pm.expect(b.token_type).to.eql('Bearer'); });",
+                  "pm.test('expires_in is seconds, not milliseconds', () => pm.expect(b.expires_in).to.eql(3600));",
+                  "pm.test('roles carry ROLE_ADMIN and nothing internal', () => { pm.expect(b.roles).to.include('ROLE_ADMIN'); pm.expect(b.roles.join()).to.not.include('FACTOR_'); });",
+                  "pm.collectionVariables.set('adminToken', b.access_token);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Log in \u2014 wrong password is 401",
+          "name": "Sign in \u2014 read-only operator",
           "request": {
             "method": "POST",
             "header": [
@@ -110,7 +157,7 @@
             "url": "{{baseUrl}}/api/v1/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"definitely-not-it\"\n}",
+              "raw": "{\n  \"username\": \"{{viewerUser}}\",\n  \"password\": \"{{viewerPass}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -120,7 +167,86 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "Bad credentials must not leak whether the username exists."
+            "description": "May read user data; refused every write and the toggle."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('holds ROLE_VIEWER', () => pm.expect(b.roles).to.include('ROLE_VIEWER'));",
+                  "pm.collectionVariables.set('viewerToken', b.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in \u2014 operator with no access",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{noAccessUser}}\",\n  \"password\": \"{{noAccessPass}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Authenticates successfully and is refused everything. Authentication is not authorisation."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK \u2014 authentication succeeds', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('noAccessToken', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong password is 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"definitely-not-it\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
           },
           "response": [],
           "event": [
@@ -130,6 +256,45 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown user is indistinguishable from a wrong password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"no-such-operator\",\n  \"password\": \"definitely-not-it\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Same status and same body \u2014 the response must not reveal whether the account exists."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('reveals nothing about the account', () => pm.expect(pm.response.text()).to.not.include('no-such-operator'));"
                 ]
               }
             }
@@ -159,8 +324,7 @@
                   "language": "json"
                 }
               }
-            },
-            "description": "Creates a user with a timestamped email so the collection can be re-run without colliding."
+            }
           },
           "response": [],
           "event": [
@@ -169,7 +333,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Unique email per run, so re-running never trips the 409 uniqueness rule.",
+                  "// Unique per run so re-running never trips the uniqueness rule.",
                   "pm.collectionVariables.set('newEmail', 'postman.' + Date.now() + '@example.com');"
                 ]
               }
@@ -180,11 +344,12 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Location points at the new resource', () => pm.expect(pm.response.headers.get('Location')).to.include('/api/v1/users/'));",
                   "const b = pm.response.json();",
                   "pm.test('server assigned an id', () => pm.expect(b.id).to.be.a('string').and.not.empty);",
-                  "pm.test('echoes what we sent', () => pm.expect(b.email).to.eql(pm.collectionVariables.get('newEmail')));",
-                  "pm.test('createdAt is an ISO-8601 string', () => pm.expect(b.createdAt).to.be.a('string').and.match(/^\\d{4}-\\d{2}-\\d{2}T/));",
-                  "pm.collectionVariables.set('userId', b.id);"
+                  "pm.test('createdAt is an ISO-8601 string, not a number', () => pm.expect(b.createdAt).to.be.a('string').and.match(/^\\d{4}-\\d{2}-\\d{2}T/));",
+                  "pm.collectionVariables.set('userId', b.id);",
+                  "pm.collectionVariables.set('takenEmail', pm.collectionVariables.get('newEmail'));"
                 ]
               }
             }
@@ -215,12 +380,12 @@
           ]
         },
         {
-          "name": "Search users",
+          "name": "List users \u2014 page beyond the end",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/v1/users?search=grace",
-            "description": "Case-insensitive substring match across first name, last name and email."
+            "url": "{{baseUrl}}/api/v1/users?page=99&size=10",
+            "description": "An empty page still carries `content: []`. Omitting it would give clients null."
           },
           "response": [],
           "event": [
@@ -230,7 +395,29 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('finds the user we just created', () => pm.expect(pm.response.json().totalElements).to.be.above(0));"
+                  "pm.test('content present and empty', () => pm.expect(pm.response.json().content).to.be.an('array').that.is.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users?search=grace",
+            "description": "Case-insensitive substring across first name, last name and email."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('finds the user just created', () => pm.expect(pm.response.json().totalElements).to.be.above(0));"
                 ]
               }
             }
@@ -258,7 +445,7 @@
           ]
         },
         {
-          "name": "Update user",
+          "name": "Update user (full replacement)",
           "request": {
             "method": "PUT",
             "header": [
@@ -270,14 +457,14 @@
             "url": "{{baseUrl}}/api/v1/users/{{userId}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"firstName\": \"Grace\",\n  \"lastName\": \"Hopper-Murray\",\n  \"email\": \"{{newEmail}}\",\n  \"phone\": \"555-0199\"\n}",
+              "raw": "{\n  \"firstName\": \"Grace\",\n  \"lastName\": \"Hopper-Murray\",\n  \"email\": \"{{newEmail}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Full replace. Omitting `phone` clears it rather than leaving the old value."
+            "description": "Update replaces every editable field, so the omitted phone is cleared."
           },
           "response": [],
           "event": [
@@ -289,7 +476,91 @@
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "const b = pm.response.json();",
                   "pm.test('surname was replaced', () => pm.expect(b.lastName).to.eql('Hopper-Murray'));",
+                  "pm.test('omitting phone clears it (FR-3)', () => pm.expect(b.phone).to.be.null);",
                   "pm.test('updatedAt moved past createdAt', () => pm.expect(new Date(b.updatedAt) >= new Date(b.createdAt)).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Server-managed fields are ignored, not rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"11111111-1111-1111-1111-111111111111\",\n  \"createdAt\": \"2000-01-01T00:00:00Z\",\n  \"firstName\": \"Ada\",\n  \"lastName\": \"Lovelace\",\n  \"email\": \"{{newEmail}}.br5\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "BR-5: a client echoing back id/createdAt is ignored rather than refused."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('newEmail', 'postman.' + Date.now() + '@example.com');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test('client id ignored', () => pm.expect(b.id).to.not.eql('11111111-1111-1111-1111-111111111111'));",
+                  "pm.test('client createdAt ignored', () => pm.expect(b.createdAt).to.not.include('2000'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Whitespace is trimmed before validation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"   \",\n  \"lastName\": \"Doe\",\n  \"email\": \"{{newEmail}}.trim\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "BR-2: a field of only spaces trims to empty and fails @NotBlank."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('VALIDATION_FAILED', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_FAILED'));"
                 ]
               }
             }
@@ -299,6 +570,7 @@
     },
     {
       "name": "3 \u00b7 Error contract",
+      "description": "One envelope for every failure, and the documented status for each. Both product backends must answer identically \u2014 several of these were 500s until this folder existed.",
       "item": [
         {
           "name": "Duplicate email is 409",
@@ -313,14 +585,14 @@
             "url": "{{baseUrl}}/api/v1/users",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"firstName\": \"Impostor\",\n  \"lastName\": \"Hopper\",\n  \"email\": \"{{newEmail}}\"\n}",
+              "raw": "{\n  \"firstName\": \"Impostor\",\n  \"lastName\": \"Hopper\",\n  \"email\": \"{{takenEmail}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Uniqueness is enforced by the ux_users_email_lower index, so it holds under concurrency."
+            "description": "Reuses the address folder 2 created. Uniqueness is enforced by ux_users_email_lower, so it holds under concurrency rather than relying on a check-then-insert."
           },
           "response": [],
           "event": [
@@ -330,7 +602,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
-                  "pm.test('names the rule', () => pm.expect(pm.response.json().code).to.eql('EMAIL_ALREADY_EXISTS'));"
+                  "pm.test('EMAIL_ALREADY_EXISTS', () => pm.expect(pm.response.json().code).to.eql('EMAIL_ALREADY_EXISTS'));",
+                  "pm.test('names the offending field', () => pm.expect(pm.response.json().fieldErrors[0].field).to.eql('email'));"
                 ]
               }
             }
@@ -351,14 +624,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
-                  "pm.test('typed error code', () => pm.expect(pm.response.json().code).to.eql('USER_NOT_FOUND'));"
+                  "pm.test('USER_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('USER_NOT_FOUND'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Validation errors report every field at once",
+          "name": "Empty body reports every missing field at once",
           "request": {
             "method": "POST",
             "header": [
@@ -376,8 +649,7 @@
                   "language": "json"
                 }
               }
-            },
-            "description": "An empty body must not stop at the first invalid field."
+            }
           },
           "response": [],
           "event": [
@@ -387,7 +659,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
-                  "pm.test('lists more than one field error', () => { const e = pm.response.json(); pm.expect(e.fieldErrors, JSON.stringify(e)).to.be.an('array'); pm.expect(e.fieldErrors.length).to.be.above(1); });"
+                  "pm.test('lists more than one field error', () => { const e = pm.response.json(); pm.expect(e.fieldErrors).to.be.an('array'); pm.expect(e.fieldErrors.length).to.be.above(1); });"
                 ]
               }
             }
@@ -399,7 +671,643 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/v1/users?sort=ssn",
-            "description": "Sort fields come from an allow-list; an unknown one is rejected before it reaches the query builder."
+            "description": "Sort fields come from an allow-list and are rejected before the query builder."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('INVALID_PARAMETER', () => pm.expect(pm.response.json().code).to.eql('INVALID_PARAMETER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Malformed UUID is 400, not 500",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/not-a-uuid",
+            "description": "A path value that cannot be converted is the caller's mistake. This answered 500 until it was tested."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('not an INTERNAL_ERROR', () => pm.expect(pm.response.json().code).to.not.eql('INTERNAL_ERROR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE on a user is 405",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/00000000-0000-0000-0000-000000000000",
+            "description": "Deletion is deliberately unimplemented. Both backends answer 405, not 500."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('405 Method Not Allowed', () => pm.response.to.have.status(405));",
+                  "pm.test('METHOD_NOT_ALLOWED', () => pm.expect(pm.response.json().code).to.eql('METHOD_NOT_ALLOWED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Malformed JSON body is 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{not json",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unsupported content type is 415",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users",
+            "body": {
+              "mode": "raw",
+              "raw": "plain text",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('415 Unsupported Media Type', () => pm.response.to.have.status(415));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No token is 401, not 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Unauthenticated and forbidden are different answers; the UI branches on both."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Every failure carries a correlation id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users/00000000-0000-0000-0000-000000000000"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('body carries correlationId', () => pm.expect(pm.response.json().correlationId).to.be.a('string').and.not.empty);",
+                  "pm.test('response header carries it too', () => pm.expect(pm.response.headers.get('X-Correlation-Id')).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 \u00b7 Role-based access",
+      "description": "The product API asks the feature service whether the caller may act. Rules live there; these requests prove the product applies the answer.",
+      "item": [
+        {
+          "name": "Viewer may read users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users?size=1",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Viewer is refused a write",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Should\",\n  \"lastName\": \"Fail\",\n  \"email\": \"viewer-write@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('ACCESS_DENIED', () => pm.expect(pm.response.json().code).to.eql('ACCESS_DENIED'));",
+                  "pm.test('says the role is read-only', () => pm.expect(pm.response.json().message.toLowerCase()).to.include('read-only'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No-access operator is refused reads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users?size=1",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{noAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Authenticated, but no role permits the user-data feature."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('ACCESS_DENIED', () => pm.expect(pm.response.json().code).to.eql('ACCESS_DENIED'));",
+                  "pm.test('carries the configured explanation', () => pm.expect(pm.response.json().message).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No-access operator is refused writes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Should\",\n  \"lastName\": \"Fail\",\n  \"email\": \"noaccess-write@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{noAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 \u00b7 Feature service \u00b7 runtime",
+      "description": "What the proxy and the product backends ask for. These endpoints are the reason the service exists; administration is folder 6.",
+      "item": [
+        {
+          "name": "Runtime summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/features",
+            "description": "Active backend plus the caller's own rights, used by the product UI toolbar."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('names the active backend', () => pm.expect(b.activeBackend).to.be.oneOf(['micronaut','springboot']));",
+                  "pm.test('states the caller rights', () => { pm.expect(b.canToggle).to.be.a('boolean'); pm.expect(b.canAccessData).to.be.a('boolean'); });",
+                  "pm.collectionVariables.set('activeBackend', b.activeBackend);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Routing decision (what nginx asks)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/features/route",
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Anonymous by design: the proxy has no credentials. 204 with the upstream in a header."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "pm.test('names the upstream', () => pm.expect(pm.response.headers.get('X-Backend-Host')).to.be.oneOf(['backend','springboot-backend']));",
+                  "pm.test('is not cached', () => pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Access decision \u2014 administrator",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/features/user-data-access/access",
+            "description": "What a product backend calls, forwarding the end user's token."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('allowed, and not read-only', () => { pm.expect(b.allowed).to.be.true; pm.expect(b.readOnly).to.be.false; });",
+                  "pm.test('is a decision, not a feature dump', () => pm.expect(b).to.have.all.keys('feature','allowed','readOnly','deniedMessage','allowedRoles'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Access decision \u2014 read-only operator",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/features/user-data-access/access",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('allowed but read-only', () => { pm.expect(b.allowed).to.be.true; pm.expect(b.readOnly).to.be.true; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Access decision \u2014 no-access operator",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/features/user-data-access/access",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{noAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK \u2014 a decision, not a refusal', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('not allowed', () => pm.expect(b.allowed).to.be.false);",
+                  "pm.test('carries the message to show', () => pm.expect(b.deniedMessage).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Access decision \u2014 unconfigured feature is allowed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/features/no-such-feature/access",
+            "description": "Absence of policy is not a refusal. Refusals come from a policy that exists and excludes the caller."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('allowed', () => pm.expect(pm.response.json().allowed).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switch the active backend",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/features",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activeBackend\": \"springboot\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Takes effect on the next request \u2014 no restart, no redeploy."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('now serving from spring boot', () => pm.expect(pm.response.json().activeBackend).to.eql('springboot'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switch back",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/features",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activeBackend\": \"micronaut\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('now serving from micronaut', () => pm.expect(pm.response.json().activeBackend).to.eql('micronaut'));",
+                  "pm.test('routing header follows', () => pm.expect(pm.response.json().upstreamHost).to.eql('backend'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switching requires an administrator",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/features",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activeBackend\": \"springboot\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('ACCESS_DENIED', () => pm.expect(pm.response.json().code).to.eql('ACCESS_DENIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "An invalid backend name is 400",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/features",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activeBackend\": \"sideways\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": [],
           "event": [
@@ -420,11 +1328,10 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/v1/users",
+            "url": "{{featureUrl}}/api/v1/features",
             "auth": {
               "type": "noauth"
-            },
-            "description": "The intercept-url map is default-deny; only login, /health and the swagger paths are anonymous."
+            }
           },
           "response": [],
           "event": [
@@ -442,10 +1349,542 @@
       ]
     },
     {
-      "name": "4 \u00b7 Operations",
+      "name": "6 \u00b7 Feature service \u00b7 administration",
+      "description": "Full CRUD over toggles, their role lists and their policy, plus the guardrails and the audit trail. Creates a feature at the start and deletes it at the end, so the folder is re-runnable.",
       "item": [
         {
-          "name": "Health (anonymous)",
+          "name": "List features",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('returns an array', () => pm.expect(b).to.be.an('array'));",
+                  "pm.test('protection is server-computed', () => { const p = b.find(f => f.uid === 'user-data-access'); pm.expect(p.isProtected).to.be.true; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a feature",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/admin/features",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{featureUid}}\",\n  \"description\": \"Created by the Postman collection\",\n  \"enabled\": false,\n  \"roles\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "A created toggle does nothing until code reads it."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Unique per run so the folder can be re-run.",
+                  "pm.collectionVariables.set('featureUid', 'postman-probe-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test('echoes what we sent', () => pm.expect(b.uid).to.eql(pm.collectionVariables.get('featureUid')));",
+                  "pm.test('new features are not protected', () => pm.expect(b.isProtected).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get one feature",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/{{featureUid}}"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('roles and properties are present', () => { const b = pm.response.json(); pm.expect(b.roles).to.be.an('array'); pm.expect(b.properties).to.be.an('object'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update a feature (turn it on)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/admin/features/{{featureUid}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{featureUid}}\",\n  \"description\": \"Now enabled\",\n  \"enabled\": true,\n  \"roles\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('is enabled', () => pm.expect(pm.response.json().enabled).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Grant a role",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/{{featureUid}}/roles/ROLE_VIEWER",
+            "description": "Granting and revoking are separate explicit actions, never a wholesale list save."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('role appears in the ACL', () => pm.expect(pm.response.json().roles).to.include('ROLE_VIEWER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revoke a role",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/{{featureUid}}/roles/ROLE_VIEWER"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('role is gone', () => pm.expect(pm.response.json().roles).to.not.include('ROLE_VIEWER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set a custom property",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/admin/features/{{featureUid}}/properties/deniedMessage",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"Set by the Postman collection.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Policy the role list cannot express: read-only roles, who may administer, what to say when refusing."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('property is stored', () => pm.expect(pm.response.json().properties.deniedMessage).to.eql('Set by the Postman collection.'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove a custom property",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/{{featureUid}}/properties/deniedMessage"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('property is gone', () => pm.expect(pm.response.json().properties).to.not.have.property('deniedMessage'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate create is 409, never an overwrite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/admin/features",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"{{featureUid}}\",\n  \"description\": \"different\",\n  \"enabled\": true,\n  \"roles\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('FEATURE_ALREADY_EXISTS', () => pm.expect(pm.response.json().code).to.eql('FEATURE_ALREADY_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown feature is 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/no-such-feature"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('FEATURE_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('FEATURE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GUARDRAIL \u2014 a protected feature cannot be deleted",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/user-data-access",
+            "description": "BR-9. Deleting it would leave access to user data unconfigurable."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('FEATURE_PROTECTED', () => pm.expect(pm.response.json().code).to.eql('FEATURE_PROTECTED'));",
+                  "pm.test('says what would have broken', () => pm.expect(pm.response.json().message.toLowerCase()).to.include('protected'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GUARDRAIL \u2014 drop to one role (allowed)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/user-data-access/roles/ROLE_VIEWER",
+            "description": "Allowed: a role remains that can still administer it."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GUARDRAIL \u2014 the last role cannot be removed",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/user-data-access/roles/ROLE_ADMIN",
+            "description": "BR-8. This is the change that would lock every operator out of user data."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('FEATURE_PROTECTED', () => pm.expect(pm.response.json().code).to.eql('FEATURE_PROTECTED'));",
+                  "pm.test('names the last role', () => pm.expect(pm.response.json().message).to.include('last role'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Restore the revoked role",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/user-data-access/roles/ROLE_VIEWER",
+            "description": "Leaves the ACL as it was found \u2014 these requests take it deliberately to the edge."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('ACL is whole again', () => { const r = pm.response.json().roles; pm.expect(r).to.include('ROLE_ADMIN'); pm.expect(r).to.include('ROLE_VIEWER'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A read-only operator may list but not change",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A read-only operator is refused a create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{featureUrl}}/api/v1/admin/features",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"uid\": \"viewer-must-not-create\",\n  \"description\": \"\",\n  \"enabled\": false,\n  \"roles\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{viewerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('ACCESS_DENIED', () => pm.expect(pm.response.json().code).to.eql('ACCESS_DENIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A no-access operator is refused even the listing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{noAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "A refusal must reveal nothing about which toggles exist."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('leaks no feature names', () => pm.expect(pm.response.text()).to.not.include('user-data-access'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/audit?limit=50",
+            "description": "Append-only. Every change is recorded before it is applied, and refusals are recorded too."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('returns entries', () => pm.expect(b).to.be.an('array').and.not.empty);",
+                  "pm.test('entries carry who, what and when', () => { const e = b[0]; pm.expect(e.user).to.be.a('string'); pm.expect(e.action).to.be.a('string'); pm.expect(e.at).to.be.a('string'); });",
+                  "pm.test('refused attempts are recorded too', () => pm.expect(b.some(e => e.action.endsWith('_REFUSED'))).to.be.true);",
+                  "pm.test('newest first', () => { if (b.length > 1) pm.expect(new Date(b[0].at) >= new Date(b[1].at)).to.be.true; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clean up \u2014 delete the probe feature",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{featureUrl}}/api/v1/admin/features/{{featureUid}}"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 \u00b7 Operations",
+      "description": "Health and metrics. These live on the services themselves, never behind the proxy.",
+      "item": [
+        {
+          "name": "Product backend health (anonymous)",
           "request": {
             "method": "GET",
             "header": [],
@@ -453,7 +1892,7 @@
             "auth": {
               "type": "noauth"
             },
-            "description": "Anonymous on purpose: this is what the container HEALTHCHECK and any orchestrator probes."
+            "description": "Anonymous on purpose: this is what the container HEALTHCHECK probes."
           },
           "response": [],
           "event": [
@@ -470,12 +1909,11 @@
           ]
         },
         {
-          "name": "Prometheus metrics (requires token)",
+          "name": "Product backend metrics (requires a token)",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{opsUrl}}/prometheus",
-            "description": "Operational endpoints are sensitive; unlike /health they need a bearer token."
+            "url": "{{opsUrl}}/prometheus"
           },
           "response": [],
           "event": [
@@ -492,7 +1930,7 @@
           ]
         },
         {
-          "name": "Metrics without a token is 401",
+          "name": "Product backend metrics without a token is 401",
           "request": {
             "method": "GET",
             "header": [],
@@ -513,9 +1951,32 @@
               }
             }
           ]
+        },
+        {
+          "name": "Feature service health (anonymous)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{featureUrl}}/health",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status is UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ]
         }
-      ],
-      "description": "Management endpoints live on the backend itself. nginx proxies only /api/, so these use {{opsUrl}} rather than {{baseUrl}}."
+      ]
     }
   ]
 }

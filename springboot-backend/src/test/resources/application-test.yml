@@ -1,0 +1,29 @@
+spring:
+  flyway:
+    # Enabled only for tests: production has Micronaut as the sole migrator of this
+    # schema, so the service ships with Flyway off.
+    enabled: true
+    locations: classpath:db/test-schema
+    baseline-on-migrate: false
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+app:
+  jwt:
+    secret: test-only-signature-secret-at-least-256-bits-long-for-hs256-ok
+    expiration-seconds: 3600
+  cors:
+    allowed-origins: http://localhost:4200
+  feature-service:
+    # Deliberately unreachable by default. Access decisions then fail open, which
+    # is the documented behaviour (FT-7) and lets the product suites test the
+    # product rather than the gate. FeatureGateIT overrides this with a stub.
+    url: http://localhost:1
+    cache-ttl-seconds: 0
+
+logging:
+  level:
+    org.testcontainers: WARN
+    com.example.users: INFO

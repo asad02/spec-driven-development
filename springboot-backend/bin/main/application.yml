@@ -24,17 +24,9 @@ spring:
     show-sql: false
 
   flyway:
-    # The Micronaut service owns the users/auth_user migrations against this same
-    # database (technical-spec-springboot §9.1). This service migrates only its own
-    # ff4j tables, under its own history table so the two never interleave.
-    enabled: true
-    locations: classpath:db/ff4j
-    table: flyway_schema_history_ff4j
-    baseline-on-migrate: true
-    # Must be 0. The schema is non-empty (the Micronaut service owns users/auth_user),
-    # so Flyway baselines on first run - and at the default baseline-version of 1 it
-    # would treat V1__ff4j_schema as already applied and silently skip it.
-    baseline-version: 0
+    # Nothing to migrate: Micronaut owns the user schema, and the feature schema
+    # belongs to the feature service's own database.
+    enabled: false
 
   threads:
     virtual:
@@ -47,7 +39,9 @@ app:
     expiration-seconds: ${JWT_ACCESS_TOKEN_EXPIRATION:3600}
     issuer: user-service
   cors:
-    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:4200}
+    # Comma-separated. Both browser apps need an entry: the product UI and the
+    # feature-toggle-management console are different origins.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4300}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -83,4 +77,3 @@ logging:
     com.example.users: INFO
     org.hibernate: WARN
     org.springframework: WARN
-    org.ff4j: INFO
