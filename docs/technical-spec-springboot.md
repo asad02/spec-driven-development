@@ -5,7 +5,7 @@
 | **Document** | Technical Specification — Spring Boot implementation |
 | **Implements** | [Functional Specification v1.1](functional-spec.md) |
 | **Parallels** | [Technical Specification — Micronaut](technical-spec.md) |
-| **Depends on** | [Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-backend.md) |
+| **Depends on** | [Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-management-service.md) |
 | **Version** | 1.3 |
 | **Date** | 2026-09-11 (v1.2: 2026-09-10, v1.0: 2026-09-09) |
 | **Status** | **Implemented** — see §19 for what changed during build |
@@ -13,9 +13,9 @@
 ---
 
 > **Read this first.** This is a *second implementation of the same functional
-> specification*, not a new product. The Micronaut service in `backend/` is built,
+> specification*, not a new product. The Micronaut service in `micronaut-user-management-service/` is built,
 > tested and running. Everything in this document is constrained by one rule: the
-> Angular SPA in `frontend/` and the Postman collection in `postman/` must run
+> Angular SPA in `user-management-ui/` and the Postman collection in `postman/` must run
 > against this service **without a single edit**. Where that rule and Spring
 > idiom disagree, the rule wins, and §17 records every place it bites.
 
@@ -36,7 +36,7 @@ carried over unchanged from the Micronaut spec are marked ⟳.
 | D-8 | Credential storage | Separate `auth_user` table ⟳ |
 | D-9 | List semantics | Server-side pagination, sorting and search ⟳ |
 | D-10 | UI | **The existing Angular SPA, unchanged** — no fork, no branch |
-| D-11 | Repository layout | `springboot-backend/` as a **third independent build** alongside `backend/` and `frontend/` |
+| D-11 | Repository layout | `springboot-user-management-service/` as a **third independent build** alongside `micronaut-user-management-service/` and `user-management-ui/` |
 | D-12 | Local infrastructure | The existing `docker-compose.yml`, extended with a profile |
 | D-13 | **API compatibility** | **Byte-identical wire contract** with the Micronaut service (§6). This is the acceptance test for the whole project. |
 | D-14 | Web stack | **Servlet** (embedded Tomcat), not WebFlux |
@@ -54,13 +54,13 @@ as a decision, not an accident.
 > **⚠ Risk R-1 — Jackson 3.** Spring Boot 4 ships **Jackson 3.1.5** (`tools.jackson.*`),
 > not Jackson 2 (`com.fasterxml.jackson.databind.*`). Annotations stay on
 > `com.fasterxml.jackson.annotation.*`, so DTOs port cleanly, but any custom
-> serializer, module or `ObjectMapper` wiring copied from `backend/` will not
+> serializer, module or `ObjectMapper` wiring copied from `micronaut-user-management-service/` will not
 > compile. `jackson-2-bom` 2.21.5 is still managed for compatibility, but mixing
 > both is a trap. **Port the trimming deserializer (§8.5) deliberately, not by
 > copy-paste.**
 
 > **⚠ Risk R-2 — Testcontainers 2.x.** The BOM manages **Testcontainers 2.0.5**,
-> a major version ahead of the 1.21.3 pinned in `backend/`. Its API differs, and
+> a major version ahead of the 1.21.3 pinned in `micronaut-user-management-service/`. Its API differs, and
 > the Docker-API-version workaround that build needs (§18.1) may be unnecessary or
 > may need a different form. **Spike this before committing to the test strategy in §11.**
 
@@ -73,14 +73,14 @@ as a decision, not an accident.
 ## 2. Architecture
 
 ```
-┌────────────────────┐     HTTPS/JSON      ┌──────────────────────┐    JDBC    ┌────────────┐
-│  Angular SPA       │ ──────────────────▶ │  user-service-spring │ ─────────▶ │ PostgreSQL │
-│  (unchanged)       │   Bearer <JWT>      │  (Spring Boot 4,     │   Hikari   │            │
-│  served by nginx   │ ◀────────────────── │   Tomcat, stateless) │ ◀───────── │            │
-└────────────────────┘                     └──────────────────────┘            └────────────┘
-        │                                            │
-        │ nginx proxies /api/ → whichever            ├── /actuator/health, /actuator/prometheus
-        │ backend the profile selects                └── /swagger-ui.html
+┌────────────────────┐     HTTPS/JSON      ┌─────────────────────────────────────┐    JDBC    ┌─────────────┐
+│  Angular SPA       │ ──────────────────▶ │  springboot-user-management-service │ ─────────▶ │  PostgreSQL │
+│  (unchanged)       │   Bearer <JWT>      │  (Spring Boot 4,                    │   Hikari   │             │
+│  served by nginx   │ ◀────────────────── │   Tomcat, stateless)                │ ◀───────── │             │
+└────────────────────┘                     └─────────────────────────────────────┘            └─────────────┘
+        │                                      │
+        │ nginx proxies /api/ to whichever     ├── /actuator/health, /actuator/prometheus
+        │ product service the toggle selects   └── /swagger-ui.html
 ```
 
 Identical shape to the Micronaut service, deliberately. Single deployable, no
@@ -110,8 +110,8 @@ hello-micronaut/
 │   ├── functional-spec.md
 │   ├── technical-spec.md              # Micronaut
 │   └── technical-spec-springboot.md   # this document
-├── backend/                           # Micronaut — untouched by this work
-├── springboot-backend/                    # independent Gradle build
+├── micronaut-user-management-service/                           # Micronaut — untouched by this work
+├── springboot-user-management-service/                    # independent Gradle build
 │   ├── build.gradle
 │   ├── settings.gradle
 │   ├── gradle.properties              # incl. org.gradle.java.home pin (§18.6)
@@ -119,10 +119,10 @@ hello-micronaut/
 │   ├── Dockerfile
 │   └── src/
 │       ├── main/java/com/example/users/
-│       │   ├── Application.java
+│       │   ├── SpringBootUserManagementApplication.java
 │       │   ├── config/          # SecurityConfig, JacksonConfig, OpenApiConfig, CorrelationIdFilter
 │       │   ├── controller/      # UserController, AuthController
-│       │   ├── dto/             # request/response records — same shapes as backend/
+│       │   ├── dto/             # request/response records — same shapes as micronaut-user-management-service/
 │       │   ├── entity/          # UserEntity, AuthUserEntity
 │       │   ├── exception/       # domain exceptions + one @RestControllerAdvice
 │       │   ├── repository/      # UserRepository, AuthUserRepository
@@ -134,10 +134,10 @@ hello-micronaut/
 │       │   ├── logback-spring.xml
 │       │   └── (no migrations — Micronaut owns the user schema; see §5.3)
 │       └── test/java/com/example/users/
-├── frontend/                          # unchanged
+├── user-management-ui/                          # unchanged
 ├── postman/                           # unchanged — the parity harness (§11)
 ├── docker-compose.yml                 # all four services, no profile
-└── .github/workflows/ci.yml           # gains a springboot-backend job
+└── .github/workflows/ci.yml           # gains a springboot-user-management-service job
 ```
 
 Three builds, three toolchains, no shared build files. Deleting any one folder
@@ -161,7 +161,7 @@ pin these individually; let the BOM own them.
 | Migrations | `spring-boot-starter-flyway` + `flyway-database-postgresql` | Flyway 12.4.0 |
 | Validation | `spring-boot-starter-validation` | Hibernate Validator 9.1.3.Final |
 | Security | `spring-boot-starter-security` + `-oauth2-resource-server` | Spring Security 7.1.1 |
-| Password hashing | `BCryptPasswordEncoder` (Spring Security Crypto) | cost 12 — **must match `backend/`** |
+| Password hashing | `BCryptPasswordEncoder` (Spring Security Crypto) | cost 12 — **must match `micronaut-user-management-service/`** |
 | JSON | Jackson (see R-1) | 3.1.5 |
 | API docs | `springdoc-openapi-starter-webmvc-ui` | 3.1.1 (**not** BOM-managed — pin explicitly) |
 | Observability | `spring-boot-starter-actuator` + `micrometer-registry-prometheus` | Micrometer 1.17.1 |
@@ -188,7 +188,7 @@ their history; this service runs `ddl-auto: validate` against them with
 
 It previously carried the ff4j schema under a second history table in the same
 database. That schema moved to the
-[feature service](technical-spec-feature-toggle-backend.md) and its own
+[feature service](technical-spec-feature-toggle-management-service.md) and its own
 `feature-toggle` database at v1.3, and the tables were dropped from `usersdb`.
 
 Placeholder substitution needs specific care in Spring — see §18.3.
@@ -206,7 +206,7 @@ returned object matches what was written without a re-read. ⟳
 ## 6. API contract
 
 **This section is a compatibility specification, not a design.** Every shape below
-is what `backend/` already returns and what `frontend/` and `postman/` already
+is what `micronaut-user-management-service/` already returns and what `user-management-ui/` and `postman/` already
 consume. §6.1–§6.6 of [technical-spec.md](technical-spec.md) apply verbatim; only
 the Spring-specific implementation notes are recorded here.
 
@@ -267,7 +267,7 @@ document and implementation. This service returns the documented envelope instea
 Implemented via a custom `AuthenticationEntryPoint` and `AccessDeniedHandler`.
 Safe to diverge: the SPA's `error.interceptor` and the Postman collection both
 branch on **status code**, not body shape. Recorded here so the difference is a
-decision rather than a surprise. Whether `backend/` should be corrected to match
+decision rather than a surprise. Whether `micronaut-user-management-service/` should be corrected to match
 is **TQ-7**.
 
 ## 7. Security design
@@ -400,7 +400,7 @@ property; anything else → `INVALID_PARAMETER`. ⟳ No string reaches
 BR-2 needs every incoming `String` trimmed before validation, so `"   "` fails
 `@NotBlank`. Register a Jackson module with a `String` deserializer that trims —
 **written against Jackson 3's `tools.jackson.databind` API** (R-1), not copied
-from `backend/`.
+from `micronaut-user-management-service/`.
 
 ### 8.6 Virtual threads
 
@@ -454,7 +454,7 @@ No secret is committed. The JWT secret and seed hash have **no default at all**,
 so a misconfigured production start fails loudly rather than booting with a
 guessable key. ⟳
 
-Note the env var names differ from `backend/` (`SPRING_DATASOURCE_URL` vs
+Note the env var names differ from `micronaut-user-management-service/` (`SPRING_DATASOURCE_URL` vs
 `DATASOURCE_URL`) because Spring Boot's relaxed binding maps them automatically.
 Deployment manifests are therefore **not** interchangeable between the two
 services — call this out in any runbook.
@@ -463,8 +463,8 @@ services — call this out in any runbook.
 
 ```bash
 docker compose up -d db                        # postgres only
-cd springboot-backend && ./gradlew bootRun         # :8080 locally, Flyway migrates on boot
-cd frontend       && npm start                 # SPA on :4200, proxy → :8080
+cd springboot-user-management-service && ./gradlew bootRun         # :8080 locally, Flyway migrates on boot
+cd user-management-ui       && npm start                 # SPA on :4200, proxy → :8080
 ```
 
 ## 10. OpenAPI / Swagger UI
@@ -536,7 +536,7 @@ shared or developer database; **80 % line coverage on `service/` and
 ## 12. Frontend design
 
 **No changes.** [technical-spec.md §12](technical-spec.md) remains normative and
-the code in `frontend/` is used as-is.
+the code in `user-management-ui/` is used as-is.
 
 The only touchpoint is `nginx.conf` becoming a template (§9.1) so the proxy target
 is configurable. `environment.prod.ts` keeps `apiBaseUrl` relative (`/api/v1`),
@@ -588,14 +588,14 @@ See TQ-9.
 ## 15. CI/CD
 
 GitHub Actions, path-filtered so a docs or frontend change does not run backend
-suites. ⟳ The existing `backend` and `frontend` jobs are untouched; one job is added.
+suites. ⟳ The existing `micronaut-user-management-service` and `user-management-ui` jobs are untouched; one job is added.
 
 | Job | Trigger | Steps |
 |---|---|---|
-| `backend` | changes under `backend/` | unchanged |
-| `springboot-backend` | changes under `springboot-backend/` | JDK 25 → Gradle cache → `./gradlew build` (unit + Testcontainers integration, JaCoCo threshold) → upload report |
-| `frontend` | changes under `frontend/` | unchanged |
-| `contract-parity` | changes under `springboot-backend/` **or** `postman/` | compose up the spring profile → wait for health → `newman run` → fail on any assertion |
+| `micronaut-user-management-service` | changes under `micronaut-user-management-service/` | unchanged |
+| `springboot-user-management-service` | changes under `springboot-user-management-service/` | JDK 25 → Gradle cache → `./gradlew build` (unit + Testcontainers integration, JaCoCo threshold) → upload report |
+| `user-management-ui` | changes under `user-management-ui/` | unchanged |
+| `contract-parity` | changes under `springboot-user-management-service/` **or** `postman/` | compose up the spring profile → wait for health → `newman run` → fail on any assertion |
 | `docker` | push to `main`, after all pass | build and tag images |
 
 `contract-parity` is the job that makes D-13 real. Without it, "the SPA still
@@ -607,13 +607,13 @@ Testcontainers needs a Docker daemon; `ubuntu-latest` provides one. ⟳
 
 | Ref | Question | Impact | Proposal |
 |---|---|---|---|
-| **TQ-1** | Is this a **replacement** for the Micronaut service or a permanent parallel implementation? | Everything — §9.1, §15, long-term ownership | Assume evaluation-then-replace; delete `backend/` on cutover rather than maintaining two. |
+| **TQ-1** | Is this a **replacement** for the Micronaut service or a permanent parallel implementation? | Everything — §9.1, §15, long-term ownership | Assume evaluation-then-replace; delete `micronaut-user-management-service/` on cutover rather than maintaining two. |
 | **TQ-2** | Deployment target — Kubernetes, ECS, a compose host? ⟳ | CD pipeline, probe wiring | Publish images; decide before cutover. |
 | **TQ-3** | Which secret store supplies `JWT_SIGNATURE_SECRET` and the seed hash? ⟳ | §9.2 | Platform env vars. |
 | **TQ-4** | Is Gradle (D-2) or Maven the team's preference for a Spring project? | §4, CI | Gradle for parity; cheap to change now, expensive later. |
 | **TQ-5** | Testcontainers 2.x API and Docker-29 behaviour (R-2) — spike result? | §11 | Spike before committing §11. |
 | **TQ-6** | Should Swagger UI be reachable in production? ⟳ | §10, attack surface | Disabled in prod. |
-| **TQ-7** | Should `backend/` be corrected so its 401 matches its own documented envelope (§6.3)? | Consistency between the two services | Fix Micronaut to match this spec; it is a two-line handler. |
+| **TQ-7** | Should `micronaut-user-management-service/` be corrected so its 401 matches its own documented envelope (§6.3)? | Consistency between the two services | Fix Micronaut to match this spec; it is a two-line handler. |
 | **TQ-8** | Virtual threads (§8.6) — verified safe under load with Hikari and Hibernate 7? | Concurrency model | Enable, then load-test before production. |
 | **TQ-9** | Actuator paths: expose `/health` and `/prometheus` as aliases for parity, or update probes and the Postman collection? | §11, §14, ops runbooks | Alias them via `management.endpoints.web.base-path` so operational tooling is unchanged across both services. |
 
@@ -624,7 +624,7 @@ Functional open questions **OQ-1 … OQ-5** apply unchanged.
 The honest summary of what actually differs, for anyone deciding whether this is
 worth building.
 
-| Concern | Micronaut (`backend/`) | Spring Boot (`springboot-backend/`) |
+| Concern | Micronaut (`micronaut-user-management-service/`) | Spring Boot (`springboot-user-management-service/`) |
 |---|---|---|
 | DI | Compile-time, annotation processors | Runtime, reflection + AOT option |
 | Startup | Faster; no classpath scan | Slower, though 4.x AOT narrows it |
@@ -654,7 +654,7 @@ already solved for you. Read this section before writing code, not after.
 
 Engine 29 raised its minimum API version to **1.40**. Testcontainers 1.20.x/1.21.x
 negotiates 1.32, so every container start returns `400` and the failure surfaces
-as the useless message `Could not find a valid Docker environment`. `backend/`
+as the useless message `Could not find a valid Docker environment`. `micronaut-user-management-service/`
 pins `systemProperty 'api.version', '1.44'` — note it is read as a **system
 property**; `DOCKER_API_VERSION` in the environment is not consulted.
 
@@ -691,7 +691,7 @@ and D-6 forbids editing the SQL to dodge the problem.
 
 ### 18.4 Do not port the JPQL alias workaround
 
-`backend/`'s search query aliases the entity as `userEntity_` to match the alias
+`micronaut-user-management-service/`'s search query aliases the entity as `userEntity_` to match the alias
 Micronaut Data appends in its generated `ORDER BY`. Spring Data derives the alias
 from the query, so the natural `u` is correct here (§8.3). Copying the workaround
 produces working but baffling code.
@@ -713,8 +713,8 @@ collection already checks `content` is an array and `createdAt` matches
 
 The Spring Boot Gradle plugin runs on the **Gradle JVM**, not just the toolchain.
 Where a developer's default `java` is older than 25, the build fails at
-configuration time before compiling anything. `backend/gradle.properties` pins
-`org.gradle.java.home`; do the same in `springboot-backend/gradle.properties`, and
+configuration time before compiling anything. `micronaut-user-management-service/gradle.properties` pins
+`org.gradle.java.home`; do the same in `springboot-user-management-service/gradle.properties`, and
 strip that line inside the Dockerfile where the path does not exist.
 
 ### 18.7 One database, one Flyway owner
@@ -737,7 +737,7 @@ entirely (§5.3, §19.5). Where they disagree with §5.3, §5.3 is normative.
 
 | # | Specified | Built | Why |
 |---|---|---|---|
-| D-11 | folder `backend-spring/` | **`springboot-backend/`** | Requested name. |
+| D-11 | folder `backend-spring/` | **`springboot-user-management-service/`** | Requested name. |
 | Switch point | UI picks the base URL | **nginx routes `/api/`** | Chosen at build time: the SPA keeps one origin and never learns which backend answered, so no CORS surface and no client-side coupling. |
 | ff4j store | `ff4j-store-springjdbc` | **`ff4j-core`'s `JdbcFeatureStore`** | Its constructor takes a plain `javax.sql.DataSource`. Dropping the Spring-JDBC module removes the Spring 6.2-on-Spring-7 mismatch that R-2 warned about, with no loss of function. |
 | Flag API | OpenFeature over ff4j | unchanged | Reads go through OpenFeature; writes go to ff4j directly, because OpenFeature deliberately has no mutation API. |
@@ -749,8 +749,8 @@ created its schema, persisted the flag and evaluated it without incident.
 
 ### 19.2 Routing
 
-`frontend/nginx.conf` makes an `auth_request` subrequest to
-`springboot-backend:8080/api/v1/features/route`, which evaluates the flag and
+`user-management-ui/nginx.conf` makes an `auth_request` subrequest to
+`springboot-user-management-service:8080/api/v1/features/route`, which evaluates the flag and
 answers `204` with `X-Backend-Host`. nginx then proxies to that host. A flag flip
 takes effect on the **next request** — no reload, no redeploy.
 
@@ -758,7 +758,7 @@ Two things this needed that the spec did not anticipate:
 
 - **`resolver 127.0.0.11`** — nginx resolves a variable upstream at request time,
   so Docker's embedded DNS must be declared explicitly.
-- **`location ^~ /api/v1/features`** pinned to springboot-backend. Routing the
+- **`location ^~ /api/v1/features`** pinned to springboot-user-management-service. Routing the
   toggle API *through* the toggle made the flag one-way: once switched to
   Micronaut, the endpoint that switches it back no longer existed. Caught by
   testing the flip in both directions, which is the only way to see it.
@@ -781,7 +781,7 @@ the Micronaut backend rather than failing every API call.
 
 | Check | Result |
 |---|---|
-| Postman contract suite vs `springboot-backend:8082` | **31/31 assertions, 15/15 requests** |
+| Postman contract suite vs `springboot-user-management-service:8082` | **31/31 assertions, 15/15 requests** |
 | Postman contract suite vs `backend:8080` (regression) | **31/31** |
 | Postman contract suite through nginx `:8081` | **31/31** |
 | Micronaut `./gradlew clean build` | **38/38 tests** |
@@ -792,14 +792,14 @@ the Micronaut backend rather than failing every API call.
 | UI, driven in a real browser | Three roles render their correct rights; sign-out returns to `/login`; zero console errors |
 | BCrypt compatibility | The pre-existing seeded `auth_user` hash authenticates unchanged |
 
-**D-13 is met**: `frontend/` needed no contract change, and the Postman
+**D-13 is met**: `user-management-ui/` needed no contract change, and the Postman
 collection runs unedited against either backend.
 
 ### 19.5 Authorisation (v1.3 — via the feature service)
 
 This service no longer owns the feature store, holds no ff4j dependency and
 contains no feature rules. It asks
-[`feature-toggle-backend`](technical-spec-feature-toggle-backend.md) and applies
+[`feature-toggle-management-service`](technical-spec-feature-toggle-management-service.md) and applies
 the answer — the same `FeatureGateClient` shape as the Micronaut service, so the
 two cannot drift.
 
@@ -821,7 +821,7 @@ migrates nothing — Micronaut owns the user schema.
 
 ### 19.6 Backend routing (v1.1 correction)
 
-`frontend/nginx.conf` makes an `auth_request` subrequest to
+`user-management-ui/nginx.conf` makes an `auth_request` subrequest to
 `/api/v1/features/route`, which answers `204` with `X-Backend-Host`. Two details
 the original design missed:
 
@@ -859,12 +859,12 @@ guess: pass the URL explicitly when running outside Docker, and prefer
 ---
 
 *Implemented and verified. The definition of done in §11 — 31 of 31 Postman
-assertions against `springboot-backend` with `frontend/` unmodified — is met.*
+assertions against `springboot-user-management-service` with `user-management-ui/` unmodified — is met.*
 
 ## 20. Feature toggles (v1.3) — this service is a consumer
 
 The administrative API this section once described has **moved** to
-`feature-toggle-backend`, together with the ff4j store, the guardrails, the audit
+`feature-toggle-management-service`, together with the ff4j store, the guardrails, the audit
 trail and the 20 tests that cover them.
 
 What remains here is a client (§19.5). Two consequences worth stating:

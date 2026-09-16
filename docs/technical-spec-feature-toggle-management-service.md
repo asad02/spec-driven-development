@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Document** | Technical Specification — `feature-toggle-backend` |
+| **Document** | Technical Specification — `feature-toggle-management-service` |
 | **Implements** | [Functional Specification — Feature Toggle](functional-spec-feature-toggle.md) |
-| **Consumed by** | [feature-toggle-management](technical-spec-feature-toggle-management.md) · [Micronaut](technical-spec.md) · [Spring Boot](technical-spec-springboot.md) |
+| **Consumed by** | [feature-toggle-management-ui](technical-spec-feature-toggle-management-ui.md) · [Micronaut](technical-spec.md) · [Spring Boot](technical-spec-springboot.md) |
 | **Version** | 1.0 |
 | **Date** | 2026-09-11 |
 | **Status** | **Implemented** |
@@ -48,14 +48,18 @@ cost, for a service whose whole job is a handful of small reads.
 ## 2. Architecture
 
 ```
- feature-toggle-management :8083 ─┐  admin CRUD + history
-                                  │
-              frontend :8081 ─────┤  routing subrequest (anonymous)
-                                  ├──▶  feature-toggle-backend :8084 ──▶ [ feature-toggle ]
-            backend :8080 ────────┤     ff4j + OpenFeature                FF4J_FEATURES
-   springboot-backend :8082 ──────┘     the only ff4j dependency          FF4J_ROLES
-              (access decisions)                                          FF4J_CUSTOM_PROPERTIES
-                                                                          FF4J_AUDIT
+ feature-toggle-management-ui         :8083 ─┐  admin CRUD + history
+                                             │
+ user-management-ui                   :8081 ─┤  routing subrequest (anonymous)
+                                             ├──▶  feature-toggle-management-service :8084
+ micronaut-user-management-service    :8080 ─┤         ff4j + OpenFeature                │
+ springboot-user-management-service   :8082 ─┘         the only ff4j dependency          │  JDBC
+                 (access decisions)                                                      ▼
+                                                                              [ feature-toggle ]
+                                                                                FF4J_FEATURES
+                                                                                FF4J_ROLES
+                                                                                FF4J_CUSTOM_PROPERTIES
+                                                                                FF4J_AUDIT
 ```
 
 Product backends hold **no rules**. They forward the end user's token, receive a

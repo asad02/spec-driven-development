@@ -1,7 +1,8 @@
 export const environment = {
   production: false,
-  // Relative: the dev server proxies /api to springboot-backend (proxy.conf.json),
-  // and nginx does the same in the container. The SPA is never cross-origin.
+  // Relative, and split by path: /api/v1/auth goes to a product backend because only
+  // those issue tokens, everything else to the feature service. proxy.conf.json does
+  // this in dev, nginx in the container. The SPA is never cross-origin.
   adminApiBaseUrl: '/api/v1/admin',
   authApiBaseUrl: '/api/v1',
 };

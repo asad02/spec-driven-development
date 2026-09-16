@@ -472,7 +472,7 @@ administrators.
 
 **Not specified here.** The application's stack, its port, the shape of its API
 and how it is deployed are technology decisions — see
-[Technical Specification — Feature Toggle Management](technical-spec-feature-toggle-management.md).
+[Technical Specification — Feature Toggle Management](technical-spec-feature-toggle-management-ui.md).
 This section defines only the behaviour it must exhibit.
 
 ### v1.1 — 2026-09-10

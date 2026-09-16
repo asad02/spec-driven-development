@@ -13,11 +13,11 @@
 
 | Service | Open in a browser | Host port | Container port | What it is |
 |---|---|---|---|---|
-| **frontend** | <http://localhost:8081> | `8081` | `80` | Product UI (Angular) + the API proxy |
-| **feature-toggle-management** | <http://localhost:8083> | `8083` | `80` | Feature toggle admin console (Angular) |
-| **backend** | — | `8080` | `8080` | Micronaut product API |
-| **springboot-backend** | — | `8082` | `8080` | Spring Boot product API |
-| **feature-toggle-backend** | — | `8084` | `8080` | Feature toggle service |
+| **user-management-ui** | <http://localhost:8081> | `8081` | `80` | Product UI (Angular) + the API proxy |
+| **feature-toggle-management-ui** | <http://localhost:8083> | `8083` | `80` | Feature toggle admin console (Angular) |
+| **micronaut-user-management-service** | — | `8080` | `8080` | Micronaut product API |
+| **springboot-user-management-service** | — | `8082` | `8080` | Spring Boot product API |
+| **feature-toggle-management-service** | — | `8084` | `8080` | Feature toggle service |
 | **db** | — | `15432` | `5432` | PostgreSQL 17 |
 
 **Two ports for the same thing.** The host port is what *you* use from a terminal
@@ -52,43 +52,43 @@ ports are irrelevant here.
 
 | From | To | Address |
 |---|---|---|
-| `backend`, `springboot-backend` | feature service | `http://feature-toggle-backend:8080` |
-| `backend`, `springboot-backend` | database | `jdbc:postgresql://db:5432/usersdb` |
-| `feature-toggle-backend` | database | `jdbc:postgresql://db:5432/feature-toggle` |
-| `frontend` (nginx) | product backends | `http://backend:8080` · `http://springboot-backend:8080` |
-| `frontend` (nginx) | feature service | `http://feature-toggle-backend:8080` |
-| `feature-toggle-management` (nginx) | feature service | `http://feature-toggle-backend:8080` |
-| `feature-toggle-management` (nginx) | auth | `http://springboot-backend:8080` |
+| `micronaut-user-management-service`, `springboot-user-management-service` | feature service | `http://feature-toggle-management-service:8080` |
+| `micronaut-user-management-service`, `springboot-user-management-service` | database | `jdbc:postgresql://db:5432/usersdb` |
+| `feature-toggle-management-service` | database | `jdbc:postgresql://db:5432/feature-toggle` |
+| `user-management-ui` (nginx) | product backends | `http://micronaut-user-management-service:8080` · `http://springboot-user-management-service:8080` |
+| `user-management-ui` (nginx) | feature service | `http://feature-toggle-management-service:8080` |
+| `feature-toggle-management-ui` (nginx) | feature service | `http://feature-toggle-management-service:8080` |
+| `feature-toggle-management-ui` (nginx) | auth | `http://springboot-user-management-service:8080` |
 
 ## 4. How the proxies route
 
-### 4.1 Product UI — `frontend` on :8081
+### 4.1 Product UI — `user-management-ui` on :8081
 
 ```
-/api/v1/features…  ──────────────────────────▶  feature-toggle-backend:8080
+/api/v1/features…  ──────────────────────────▶  feature-toggle-management-service:8080
                                                  (pinned: the toggle API must not
                                                   be routed by the toggle itself)
 
-/api/…             ──┬── auth_request ───────▶  feature-toggle-backend:8080
+/api/…             ──┬── auth_request ───────▶  feature-toggle-management-service:8080
                      │   /api/v1/features/route   answers 204 + X-Backend-Host
                      │
-                     └── proxy_pass ─────────▶  backend:8080          (flag off)
-                                             or springboot-backend:8080 (flag on)
+                     └── proxy_pass ─────────▶  micronaut-user-management-service:8080   (flag off)
+                                             or  springboot-user-management-service:8080  (flag on)
 
 /*                 ──────────────────────────▶  the Angular bundle (SPA fallback)
 ```
 
 If the feature service is unreachable, the subrequest fails and an `error_page`
-rule falls through to `backend:8080` rather than failing every API call.
+rule falls through to `micronaut-user-management-service:8080` rather than failing every API call.
 
-### 4.2 Admin console — `feature-toggle-management` on :8083
+### 4.2 Admin console — `feature-toggle-management-ui` on :8083
 
 ```
-/api/v1/auth/…     ──────────────────────────▶  springboot-backend:8080
+/api/v1/auth/…     ──────────────────────────▶  springboot-user-management-service:8080
                                                  (issues tokens; the feature
                                                   service validates but issues none)
 
-/api/…             ──────────────────────────▶  feature-toggle-backend:8080
+/api/…             ──────────────────────────▶  feature-toggle-management-service:8080
 
 /*                 ──────────────────────────▶  the Angular bundle
 ```
@@ -99,7 +99,7 @@ rule falls through to `backend:8080` rather than failing every API call.
 
 ## 5. Endpoints by service
 
-### 5.1 Product API — `backend` :8080 and `springboot-backend` :8082
+### 5.1 Product API — `micronaut-user-management-service` :8080 and `springboot-user-management-service` :8082
 
 Both expose an identical contract; either can serve any request.
 
@@ -114,7 +114,7 @@ Both expose an identical contract; either can serve any request.
 | `GET` | `/health` | none |
 | `GET` | `/prometheus` | bearer |
 
-### 5.2 Feature toggle service — `feature-toggle-backend` :8084
+### 5.2 Feature toggle service — `feature-toggle-management-service` :8084
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -148,8 +148,8 @@ Both expose an identical contract; either can serve any request.
 
 | Database | Owner | Tables |
 |---|---|---|
-| `usersdb` | `backend` (Micronaut) migrates it | `users`, `auth_user`, `flyway_schema_history` |
-| `feature-toggle` | `feature-toggle-backend` migrates it | `ff4j_features`, `ff4j_roles`, `ff4j_custom_properties`, `ff4j_properties`, `ff4j_audit`, `flyway_schema_history` |
+| `usersdb` | `micronaut-user-management-service` (Micronaut) migrates it | `users`, `auth_user`, `flyway_schema_history` |
+| `feature-toggle` | `feature-toggle-management-service` migrates it | `ff4j_features`, `ff4j_roles`, `ff4j_custom_properties`, `ff4j_properties`, `ff4j_audit`, `flyway_schema_history` |
 
 Both live in the one PostgreSQL container. **One writer per database** — that is
 what keeps the migration histories from colliding.
@@ -178,8 +178,8 @@ inside the network depends on the host mapping.
 
 | Component | Command | Serves on | Talks to |
 |---|---|---|---|
-| Product UI | `cd frontend && npm start` | `4200` | proxies `/api` → `localhost:8080` |
-| Admin console | `cd feature-toggle-management && npm start` | `4300` | proxies `/api` → `localhost:8084` |
+| Product UI | `cd user-management-ui && npm start` | `4200` | proxies `/api` → `localhost:8080` |
+| Admin console | `cd feature-toggle-management-ui && npm start` | `4300` | proxies `/api` → `localhost:8084` |
 | Any backend | `./gradlew bootRun` / `run` | `8080` | needs `DATASOURCE_URL` passed explicitly |
 
 Running a backend locally **needs the datasource URL given explicitly** — the

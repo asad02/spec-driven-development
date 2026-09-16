@@ -1,6 +1,6 @@
 micronaut:
   application:
-    name: user-service
+    name: micronaut-user-management-service
   server:
     port: ${SERVER_PORT:8080}
     cors:
@@ -89,12 +89,12 @@ jackson:
 app:
   # Where access decisions come from. This service holds no feature rules.
   feature-service:
-    url: ${FEATURE_SERVICE_URL:`http://feature-toggle-backend:8080`}
+    url: ${FEATURE_SERVICE_URL:`http://feature-toggle-management-service:8080`}
     cache-ttl-seconds: ${FEATURE_SERVICE_CACHE_TTL:10}
 
 datasources:
   default:
-    url: ${DATASOURCE_URL:`jdbc:postgresql://localhost:5432/usersdb`}
+    url: ${DATASOURCE_URL:`jdbc:postgresql://localhost:15432/usersdb`}
     username: ${DATASOURCE_USERNAME:postgres}
     password: ${DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver

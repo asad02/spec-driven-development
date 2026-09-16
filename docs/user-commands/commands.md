@@ -15,11 +15,11 @@ All `docker compose` commands run from the repository root, with Docker Desktop 
 
 | Service | Host port | Container port | What it is |
 |---|---|---|---|
-| `frontend` | **8081** | 80 | Product UI (Angular) + the API proxy |
-| `feature-toggle-management` | **8083** | 80 | Feature toggle admin console (Angular) |
-| `backend` | **8080** | 8080 | Micronaut product API |
-| `springboot-backend` | **8082** | 8080 | Spring Boot product API |
-| `feature-toggle-backend` | **8084** | 8080 | Feature toggle service — owns the access rules |
+| `user-management-ui` | **8081** | 80 | Product UI (Angular) + the API proxy |
+| `feature-toggle-management-ui` | **8083** | 80 | Feature toggle admin console (Angular) |
+| `micronaut-user-management-service` | **8080** | 8080 | Micronaut product API |
+| `springboot-user-management-service` | **8082** | 8080 | Spring Boot product API |
+| `feature-toggle-management-service` | **8084** | 8080 | Feature toggle service — owns the access rules |
 | `db` | **15432** | 5432 | PostgreSQL 17, two databases |
 
 | Where | URL |
@@ -50,7 +50,7 @@ docker compose ps               # status, ports and health
 docker compose stop             # stop containers, keep them
 docker compose start            # start them again
 docker compose down             # stop and remove containers + network — DATA IS KEPT
-docker compose restart backend  # restart a single service
+docker compose restart micronaut-user-management-service  # restart a single service
 ```
 
 Startup is ordered by health, not by luck: the product backends wait for
@@ -60,8 +60,8 @@ Startup is ordered by health, not by luck: the product backends wait for
 
 ```bash
 docker compose up -d --build                        # rebuild whatever changed
-docker compose up -d --build feature-toggle-backend # rebuild one service
-docker compose build --no-cache springboot-backend  # force a clean rebuild
+docker compose up -d --build feature-toggle-management-service # rebuild one service
+docker compose build --no-cache springboot-user-management-service  # force a clean rebuild
 ```
 
 A Java or Angular change **needs `--build`**. Without it Compose reuses the old
@@ -73,13 +73,13 @@ image and your change silently does not appear.
 
 ```bash
 docker compose logs -f                            # everything, following
-docker compose logs -f feature-toggle-backend     # one service
-docker compose logs --tail 50 backend             # last 50 lines
-docker compose logs --since 5m springboot-backend # recent only
+docker compose logs -f feature-toggle-management-service     # one service
+docker compose logs --tail 50 micronaut-user-management-service  # last 50 lines
+docker compose logs --since 5m springboot-user-management-service # recent only
 
-docker compose logs backend | grep -i flyway                 # did migrations run?
-docker compose logs feature-toggle-backend | grep -i audit   # who changed a toggle
-docker compose logs backend | grep -i "feature service"      # gate calls and failures
+docker compose logs micronaut-user-management-service | grep -i flyway  # did migrations run?
+docker compose logs feature-toggle-management-service | grep -i audit   # who changed a toggle
+docker compose logs micronaut-user-management-service | grep -i "feature service"  # gate calls and failures
 ```
 
 ```bash
@@ -144,7 +144,7 @@ Then use psql's own meta-commands:
 
 ## 6. What lives where
 
-### `usersdb` — owned by `backend` (Micronaut)
+### `usersdb` — owned by `micronaut-user-management-service` (Micronaut)
 
 | Table | Purpose |
 |---|---|
@@ -152,7 +152,7 @@ Then use psql's own meta-commands:
 | `auth_user` | Operator logins and their roles |
 | `flyway_schema_history` | Its migrations (V1–V4) |
 
-### `feature-toggle` — owned by `feature-toggle-backend`
+### `feature-toggle` — owned by `feature-toggle-management-service`
 
 | Table | Purpose |
 |---|---|
@@ -302,11 +302,11 @@ curl -s -o /dev/null -D - http://localhost:8084/api/v1/features/route | grep -i 
 ### Test suites
 
 ```bash
-cd backend                && ./gradlew clean build   # 38 tests
-cd springboot-backend     && ./gradlew clean build   # 47 tests
-cd feature-toggle-backend && ./gradlew clean build   # 20 tests
-cd frontend               && npm run test:ci && npm run build
-cd feature-toggle-management && npm run build
+cd micronaut-user-management-service                && ./gradlew clean build   # 38 tests
+cd springboot-user-management-service     && ./gradlew clean build   # 47 tests
+cd feature-toggle-management-service && ./gradlew clean build   # 20 tests
+cd user-management-ui               && npm run test:ci && npm run build
+cd feature-toggle-management-ui && npm run build
 
 # the whole API surface — 61 requests, 133 assertions (needs Node 20+)
 newman run postman/user-management.postman_collection.json

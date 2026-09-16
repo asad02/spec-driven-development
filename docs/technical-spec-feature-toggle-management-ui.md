@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Document** | Technical Specification — `feature-toggle-management` |
+| **Document** | Technical Specification — `feature-toggle-management-ui` |
 | **Implements** | [Functional Specification — Feature Toggle](functional-spec-feature-toggle.md) FT-3, FT-5 |
-| **Depends on** | [Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-backend.md) (owns the feature store) |
+| **Depends on** | [Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-management-service.md) (owns the feature store) |
 | **Version** | 2.0 |
 | **Date** | 2026-09-11 (v1.0: 2026-09-10) |
 | **Status** | **Implemented** — see §11 |
@@ -21,18 +21,18 @@
 
 | # | Decision | Choice |
 |---|---|---|
-| D-1 | Deployable | **Separate SPA**, own build, own image, own port — not a route in `frontend/` |
-| D-2 | Name / folder | `feature-toggle-management/` |
+| D-1 | Deployable | **Separate SPA**, own build, own image, own port — not a route in `user-management-ui/` |
+| D-2 | Name / folder | `feature-toggle-management-ui/` |
 | D-3 | Port | **8083** (host) → 80 (container) |
-| D-4 | Backend | **None of its own.** It consumes `feature-toggle-backend`, which owns the feature store |
-| D-5 | UI stack | Angular + Angular Material, matching `frontend/` |
+| D-4 | Backend | **None of its own.** It consumes `feature-toggle-management-service`, which owns the feature store |
+| D-5 | UI stack | Angular + Angular Material, matching `user-management-ui/` |
 | D-6 | Identity | The **same** operator accounts and JWTs as the product UI — no separate login, no console credential |
 | D-7 | Roles | **`ROLE_ADMIN`** manages; **`ROLE_VIEWER`** reads. No new roles are introduced |
 | D-8 | Scope | Create, read, update, delete feature toggles, their role lists and their policy properties |
 | D-9 | Availability | **Disabled by default**; enabled per environment (FR-11) |
 
 **On D-4 — why no backend of its own.** The feature store has exactly one writer,
-`feature-toggle-backend`. A second writing service would reintroduce the
+`feature-toggle-management-service`. A second writing service would reintroduce the
 split-ownership hazard the extraction was meant to remove. This application is a
 pure SPA over that service's admin API.
 
@@ -53,28 +53,29 @@ later.
 > **⚠ Risk R-2 — a fourth image to keep in step.** Angular version, Material
 > theme, JWT handling and error envelope all now exist in two SPAs. They will
 > drift. Mitigation: this app is deliberately small, and shares no code with
-> `frontend/` — duplication is preferred over a shared library for two consumers.
+> `user-management-ui/` — duplication is preferred over a shared library for two consumers.
 
 ## 2. Architecture
 
 ```
-┌────────────────────────────┐
-│ feature-toggle-management  │  :8083   admin SPA (Angular + Material)
-│  (nginx + static bundle)   │
-└─────────────┬──────────────┘
-              │ /api/v1/admin/**   Bearer <JWT>
-              ▼
-┌────────────────────────────┐
-│ springboot-backend  :8082  │  owns the ff4j store; enforces roles
-└─────────────┬──────────────┘
-              │ JDBC
-              ▼
-   FF4J_FEATURES · FF4J_ROLES · FF4J_CUSTOM_PROPERTIES · FF4J_AUDIT
-              ▲
-              │ reads the same ACL, independently
-┌─────────────┴──────────────┐
-│ backend (Micronaut) :8080  │
-└────────────────────────────┘
+┌──────────────────────────────────────┐
+│  feature-toggle-management-ui        │  :8083   admin SPA (Angular + Material)
+│  (nginx + static bundle)             │
+└──────────────────┬───────────────────┘
+                   │  /api/v1/admin/**   Bearer <JWT>
+                   ▼
+┌──────────────────────────────────────┐
+│  feature-toggle-management-service   │  :8084   owns the ff4j store; enforces roles
+└──────────────────┬───────────────────┘
+                   │  JDBC
+                   ▼
+    FF4J_FEATURES · FF4J_ROLES · FF4J_CUSTOM_PROPERTIES · FF4J_AUDIT
+                   ▲
+                   │  asked over HTTP per request — never JDBC
+┌──────────────────┴───────────────────┐
+│  micronaut-user-management-service   │  :8080
+│  springboot-user-management-service  │  :8082
+└──────────────────────────────────────┘
 ```
 
 Changes made here take effect on the **next request** to either product backend,
@@ -84,10 +85,10 @@ restarted, and this application is not in the request path of the product API.
 ## 3. Repository layout
 
 ```
-feature-toggle-management/
+feature-toggle-management-ui/
 ├── package.json  angular.json  tsconfig.json
 ├── Dockerfile  nginx.conf
-├── proxy.conf.json                  # dev: /api → springboot-backend:8082
+├── proxy.conf.json                  # dev: /api → feature-toggle-management-service:8084
 └── src/app/
     ├── core/
     │   ├── auth/      auth.service.ts · auth.guard.ts · admin.guard.ts · jwt.interceptor.ts
@@ -104,7 +105,7 @@ feature-toggle-management/
 
 A fourth independent build. Deleting this folder leaves the other three working.
 
-## 4. Admin API (added to `springboot-backend`)
+## 4. Admin API (hosted on `feature-toggle-management-service`)
 
 Base path `/api/v1/admin`. Same JWT, same error envelope, same correlation header
 as the product API.
@@ -166,9 +167,9 @@ The existing envelope, with two additions:
 - **Read-only means read-only** — `ROLE_VIEWER` receives 403 on every mutating
   verb. There is no "soft" read-only that relies on the UI.
 - **CORS** — the admin SPA is a different origin (`:8083`) from
-  `springboot-backend` (`:8082`), so unlike the product UI this application
+  `springboot-user-management-service` (`:8082`), so unlike the product UI this application
   genuinely needs CORS. Either add `:8083` to the allowed origins, or have its
-  own nginx proxy `/api` the way `frontend/` does. **Prefer the proxy** — it
+  own nginx proxy `/api` the way `user-management-ui/` does. **Prefer the proxy** — it
   keeps the browser same-origin and avoids widening CORS on a service that
   handles authentication.
 
@@ -229,10 +230,10 @@ screen is read-only for both roles — there is no delete, for anyone.
 
 | Image | Base | Notes |
 |---|---|---|
-| `feature-toggle-management` | `node:22-alpine` build → `nginx:1.29-alpine` | Same two-stage shape as `frontend/`; nginx proxies `/api/` to `springboot-backend:8080` |
+| `feature-toggle-management-ui` | `node:22-alpine` build → `nginx:1.29-alpine` | Same two-stage shape as `user-management-ui/`; nginx proxies `/api/` to `springboot-user-management-service:8080` |
 
 Added to `docker-compose.yml` as a fourth service on `8083`, depending on
-`springboot-backend` being healthy. It is **not** in the product request path:
+`springboot-user-management-service` being healthy. It is **not** in the product request path:
 if it is down, the product UI and both backends are unaffected.
 
 ## 9. Testing
@@ -267,18 +268,18 @@ service and database.
 
 | Was | Now |
 |---|---|
-| Admin API hosted on `springboot-backend` | Hosted on **`feature-toggle-backend`** (:8084) |
+| Admin API hosted on `springboot-user-management-service` | Hosted on **`feature-toggle-management-service`** (:8084) |
 | Store in `usersdb` alongside user tables | Its own **`feature-toggle`** database |
 | One nginx upstream | **Two** — see §11.2 |
 
 ### 11.2 Authentication goes to a different upstream than the rest
 
-`feature-toggle-backend` validates tokens but issues none, so `/api/v1/auth/` must
+`feature-toggle-management-service` validates tokens but issues none, so `/api/v1/auth/` must
 reach a service that owns `auth_user`. nginx therefore proxies:
 
 ```
-location ^~ /api/v1/auth/   →  springboot-backend:8080   (issues the token)
-location    /api/           →  feature-toggle-backend:8080 (validates it)
+location ^~ /api/v1/auth/   →  springboot-user-management-service:8080   (issues the token)
+location    /api/           →  feature-toggle-management-service:8080 (validates it)
 ```
 
 Same operator, same token, two upstreams. Sending `/auth` to the feature service

@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "frontend": {
+    "user-management-ui": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -67,10 +67,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "frontend:build:production"
+              "buildTarget": "user-management-ui:build:production"
             },
             "development": {
-              "buildTarget": "frontend:build:development"
+              "buildTarget": "user-management-ui:build:development"
             }
           },
           "defaultConfiguration": "development",

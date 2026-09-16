@@ -12,9 +12,9 @@ import { FeatureService } from '../features/feature.service';
 export const servedByInterceptor: HttpInterceptorFn = (req, next) => {
   const features = inject(FeatureService);
 
-  // The feature endpoints are pinned to springboot-backend in nginx regardless of
-  // routing, so their X-Served-By says nothing about which backend serves data.
-  // Recording it would make the indicator permanently read "springboot".
+  // The feature endpoints are pinned to feature-toggle-management-service in nginx
+  // regardless of routing, so their X-Served-By says nothing about which backend
+  // serves data. Recording it would make the indicator permanently wrong.
   const isFeatureEndpoint = req.url.includes('/features');
 
   return next(req).pipe(

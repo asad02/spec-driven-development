@@ -3,6 +3,10 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/hello-micronaut.iml" filepath="$PROJECT_DIR$/.idea/hello-micronaut.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/micronaut-user-management-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/micronaut-user-management-service.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/micronaut-user-management-service.test.iml" filepath="$PROJECT_DIR$/.idea/modules/micronaut-user-management-service.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/user-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/user-service.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/user-service.test.iml" filepath="$PROJECT_DIR$/.idea/modules/user-service.test.iml" />
     </modules>
   </component>
 </project>

@@ -6,7 +6,10 @@ micronaut:
         signatures:
           secret:
             generator:
-              secret: dev-only-signature-secret-not-for-any-deployed-environment-32b+
+              # The literal is only a fallback. When JWT_SIGNATURE_SECRET is set —
+              # `gradlew run` reads it from the root .env, as compose does — this
+              # service signs with the same secret the feature service verifies with.
+              secret: ${JWT_SIGNATURE_SECRET:dev-only-signature-secret-not-for-any-deployed-environment-32b+}
 flyway:
   datasources:
     default:

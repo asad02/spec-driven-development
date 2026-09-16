@@ -1053,7 +1053,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('204 No Content', () => pm.response.to.have.status(204));",
-                  "pm.test('names the upstream', () => pm.expect(pm.response.headers.get('X-Backend-Host')).to.be.oneOf(['backend','springboot-backend']));",
+                  "pm.test('names the upstream', () => pm.expect(pm.response.headers.get('X-Backend-Host')).to.be.oneOf(['micronaut-user-management-service','springboot-user-management-service']));",
                   "pm.test('is not cached', () => pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'));"
                 ]
               }
@@ -1237,7 +1237,7 @@
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "pm.test('now serving from micronaut', () => pm.expect(pm.response.json().activeBackend).to.eql('micronaut'));",
-                  "pm.test('routing header follows', () => pm.expect(pm.response.json().upstreamHost).to.eql('backend'));"
+                  "pm.test('routing header follows', () => pm.expect(pm.response.json().upstreamHost).to.eql('micronaut-user-management-service'));"
                 ]
               }
             }

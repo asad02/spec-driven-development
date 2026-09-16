@@ -39,7 +39,7 @@ public class FeatureGateClient {
     private final String baseUrl;
     private final Duration ttl;
 
-    public FeatureGateClient(@Value("${app.feature-service.url:http://feature-toggle-backend:8080}") String baseUrl,
+    public FeatureGateClient(@Value("${app.feature-service.url:http://feature-toggle-management-service:8080}") String baseUrl,
                              @Value("${app.feature-service.cache-ttl-seconds:10}") Integer ttlSeconds) {
         this.baseUrl = baseUrl;
         this.ttl = Duration.ofSeconds(ttlSeconds == null ? 10 : ttlSeconds);

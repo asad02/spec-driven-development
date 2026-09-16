@@ -17,8 +17,8 @@ and **which implementation serves traffic**, as a capability in its own right �
 separately deployable, separately owned, and usable by more than one consumer.
 
 This document describes what the capability does. Technology decisions live in
-[Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-backend.md)
-and [Technical Specification — Feature Toggle Management](technical-spec-feature-toggle-management.md).
+[Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-management-service.md)
+and [Technical Specification — Feature Toggle Management](technical-spec-feature-toggle-management-ui.md).
 
 ## 2. Why it is separate
 

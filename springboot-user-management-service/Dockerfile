@@ -28,7 +28,7 @@ RUN apt-get update \
 WORKDIR /app
 # Spring Boot's bootJar is self-contained, so unlike the Micronaut image this is a
 # single COPY with no layer directories to reassemble.
-COPY --from=build --chown=app:app /build/build/libs/springboot-user-service-1.0.jar app.jar
+COPY --from=build --chown=app:app /build/build/libs/springboot-user-management-service-1.0.jar app.jar
 
 USER app
 EXPOSE 8080

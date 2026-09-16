@@ -5,7 +5,7 @@ import { Injectable } from '@angular/core';
  * origins in development, and sharing a key would make signing out of one look
  * like it signed you out of the other.
  */
-const TOKEN_KEY = 'feature-toggle-management.access-token';
+const TOKEN_KEY = 'feature-toggle-management-ui.access-token';
 
 @Injectable({ providedIn: 'root' })
 export class TokenStorage {

@@ -11,7 +11,7 @@ RUN npm run build
 # ---- runtime ----
 FROM nginx:1.29-alpine AS runtime
 
-COPY --from=build /app/dist/feature-toggle-management/browser /usr/share/nginx/html
+COPY --from=build /app/dist/feature-toggle-management-ui/browser /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80

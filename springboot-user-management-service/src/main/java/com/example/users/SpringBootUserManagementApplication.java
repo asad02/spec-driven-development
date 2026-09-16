@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
-public class Application {
+public class SpringBootUserManagementApplication {
     public static void main(String[] args) {
-        SpringApplication.run(Application.class, args);
+        SpringApplication.run(SpringBootUserManagementApplication.class, args);
     }
 }

@@ -8,7 +8,7 @@
         <option name="micronaut.processing.annotations" value="com.example.users.*" />
         <option name="micronaut.processing.group" value="com.example.users" />
         <option name="micronaut.processing.incremental" value="true" />
-        <option name="micronaut.processing.module" value="user-service" />
+        <option name="micronaut.processing.module" value="micronaut-user-management-service" />
         <processorPath useClasspath="false">
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut.data/micronaut-data-processor/4.14.4/df1d56901707dfb741283cbf0cb00b46bcdb5c4f/micronaut-data-processor-4.14.4.jar" />
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut.micrometer/micronaut-micrometer-annotation/5.13.2/ad2ac6948779e550d6745818d0a6d41f5daa48ee/micronaut-micrometer-annotation-5.13.2.jar" />
@@ -111,7 +111,7 @@
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.javaparser/javaparser-core/3.27.0/d9046a138aac01fd6b5ed78e5cb8e4081d46b814/javaparser-core-3.27.0.jar" />
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.checkerframework/checker-qual/3.49.4/dab18d65562ddd27ca08daf5da04bfe993246648/checker-qual-3.49.4.jar" />
         </processorPath>
-        <module name="user-service.main" />
+        <module name="micronaut-user-management-service.main" />
       </profile>
       <profile name="Gradle Imported" enabled="true">
         <outputRelativeToContentRoot value="true" />
@@ -119,7 +119,7 @@
         <option name="micronaut.processing.annotations" value="com.example.users.*" />
         <option name="micronaut.processing.group" value="com.example.users" />
         <option name="micronaut.processing.incremental" value="true" />
-        <option name="micronaut.processing.module" value="user-service" />
+        <option name="micronaut.processing.module" value="micronaut-user-management-service" />
         <processorPath useClasspath="false">
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut.data/micronaut-data-processor/4.14.4/df1d56901707dfb741283cbf0cb00b46bcdb5c4f/micronaut-data-processor-4.14.4.jar" />
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/io.micronaut.micrometer/micronaut-micrometer-annotation/5.13.2/ad2ac6948779e550d6745818d0a6d41f5daa48ee/micronaut-micrometer-annotation-5.13.2.jar" />
@@ -164,15 +164,21 @@
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.github.javaparser/javaparser-core/3.27.0/d9046a138aac01fd6b5ed78e5cb8e4081d46b814/javaparser-core-3.27.0.jar" />
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.checkerframework/checker-qual/3.49.4/dab18d65562ddd27ca08daf5da04bfe993246648/checker-qual-3.49.4.jar" />
         </processorPath>
-        <module name="user-service.test" />
+        <module name="micronaut-user-management-service.test" />
       </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="feature-toggle-backend" options="-parameters -parameters" />
-      <module name="feature-toggle-backend.main" options="-parameters -parameters" />
-      <module name="feature-toggle-backend.test" options="-parameters -parameters" />
+      <module name="feature-toggle-management-service" options="-parameters -parameters" />
+      <module name="feature-toggle-management-service.main" options="-parameters -parameters" />
+      <module name="feature-toggle-management-service.test" options="-parameters -parameters" />
+      <module name="micronaut-user-management-service" options="-parameters -Amicronaut.openapi.views.spec=swagger-ui.enabled=true,swagger-ui.theme=flattop -Amicronaut.processing.incremental=true -Amicronaut.processing.annotations=com.example.users.* -Amicronaut.processing.group=com.example.users -Amicronaut.processing.module=micronaut-user-management-service" />
+      <module name="micronaut-user-management-service.main" options="-parameters -Amicronaut.openapi.views.spec=swagger-ui.enabled=true,swagger-ui.theme=flattop -Amicronaut.processing.incremental=true -Amicronaut.processing.annotations=com.example.users.* -Amicronaut.processing.group=com.example.users -Amicronaut.processing.module=micronaut-user-management-service" />
+      <module name="micronaut-user-management-service.test" options="-parameters -Amicronaut.openapi.views.spec=swagger-ui.enabled=true,swagger-ui.theme=flattop -Amicronaut.processing.incremental=true -Amicronaut.processing.annotations=com.example.users.* -Amicronaut.processing.group=com.example.users -Amicronaut.processing.module=micronaut-user-management-service" />
+      <module name="springboot-user-management-service" options="-parameters -parameters" />
+      <module name="springboot-user-management-service.main" options="-parameters -parameters" />
+      <module name="springboot-user-management-service.test" options="-parameters -parameters" />
       <module name="springboot-user-service" options="-parameters -parameters" />
       <module name="springboot-user-service.main" options="-parameters -parameters" />
       <module name="springboot-user-service.test" options="-parameters -parameters" />

@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "feature-toggle-management": {
+    "feature-toggle-management-ui": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -67,10 +67,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "feature-toggle-management:build:production"
+              "buildTarget": "feature-toggle-management-ui:build:production"
             },
             "development": {
-              "buildTarget": "feature-toggle-management:build:development"
+              "buildTarget": "feature-toggle-management-ui:build:development"
             }
           },
           "defaultConfiguration": "development",

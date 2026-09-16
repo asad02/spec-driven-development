@@ -5,7 +5,7 @@
 | **Document** | Technical Specification |
 | **Implements** | [Functional Specification v1.1](functional-spec.md) |
 | **Sibling** | [Technical Specification — Spring Boot](technical-spec-springboot.md) |
-| **Depends on** | [Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-backend.md) |
+| **Depends on** | [Technical Specification — Feature Toggle Backend](technical-spec-feature-toggle-management-service.md) |
 | **Version** | 1.2 |
 | **Date** | 2026-09-11 (v1.1: 2026-09-10, v1.0: 2026-09-01) |
 | **Status** | **Implemented** — see §17 for what was built and what changed |
@@ -42,14 +42,14 @@ These were chosen explicitly; everything below follows from them.
 ## 2. Architecture
 
 ```
-┌────────────────────┐     HTTPS/JSON      ┌──────────────────────┐    JDBC    ┌────────────┐
-│  Angular SPA       │ ──────────────────▶ │  user-service        │ ─────────▶ │ PostgreSQL │
-│  (Angular Material)│   Bearer <JWT>      │  (Micronaut 4, JVM)  │   pool     │            │
-│  static assets     │ ◀────────────────── │  stateless           │ ◀───────── │            │
-└────────────────────┘                     └──────────────────────┘            └────────────┘
-        │                                            │
-        │ served by nginx (prod)                     ├── /health, /metrics, /info
-        │ ng serve + proxy (dev)                     └── /swagger-ui
+┌────────────────────┐     HTTPS/JSON      ┌─────────────────────────────────────┐    JDBC    ┌─────────────┐
+│  Angular SPA       │ ──────────────────▶ │  micronaut-user-management-service  │ ─────────▶ │  PostgreSQL │
+│  (Angular Material)│   Bearer <JWT>      │  (Micronaut 4, JVM)                 │   pool     │             │
+│  static assets     │ ◀────────────────── │  stateless                          │ ◀───────── │             │
+└────────────────────┘                     └─────────────────────────────────────┘            └─────────────┘
+        │                                      │
+        │ served by nginx (prod)               ├── /health, /metrics, /info
+        │ ng serve + proxy (dev)               └── /swagger-ui
 ```
 
 Single deployable backend. No service-to-service calls, no message broker, no
@@ -77,7 +77,7 @@ hello-micronaut/
 ├── docs/
 │   ├── functional-spec.md
 │   └── technical-spec.md
-├── backend/                       # independent Gradle build
+├── micronaut-user-management-service/                       # independent Gradle build
 │   ├── build.gradle
 │   ├── settings.gradle
 │   ├── gradle.properties
@@ -86,7 +86,7 @@ hello-micronaut/
 │   ├── Dockerfile
 │   └── src/
 │       ├── main/java/com/example/users/
-│       │   ├── Application.java
+│       │   ├── MicronautUserManagementApplication.java
 │       │   ├── config/            # CORS, security, OpenAPI, Jackson
 │       │   ├── controller/        # UserController, AuthController
 │       │   ├── dto/               # request/response records
@@ -102,7 +102,7 @@ hello-micronaut/
 │       │   ├── logback.xml
 │       │   └── db/migration/              # Flyway V*.sql
 │       └── test/java/com/example/users/   # unit + integration tests
-├── frontend/                      # independent npm/Angular build
+├── user-management-ui/                      # independent npm/Angular build
 │   ├── package.json  angular.json  tsconfig.json
 │   ├── Dockerfile  nginx.conf
 │   ├── proxy.conf.json            # dev proxy → backend
@@ -113,7 +113,7 @@ hello-micronaut/
 ```
 
 Two builds, two toolchains, two Dockerfiles, no shared build files. Deleting
-`frontend/` leaves a working backend and vice versa.
+`user-management-ui/` leaves a working backend and vice versa.
 
 ## 4. Backend technology stack
 
@@ -129,7 +129,7 @@ Two builds, two toolchains, two Dockerfiles, no shared build files. Deleting
 | Validation | `micronaut-validation` (Jakarta Bean Validation) | |
 | Security | `micronaut-security-jwt` | |
 | Password hashing | BCrypt (`org.mindrot:jbcrypt`) | Cost factor 12. |
-| Access decisions | **HTTP client to `feature-toggle-backend`** | No flag library of any kind in this build; see §17.2. |
+| Access decisions | **HTTP client to `feature-toggle-management-service`** | No flag library of any kind in this build; see §17.2. |
 | API docs | `micronaut-openapi` + swagger-ui | |
 | Observability | `micronaut-management`, `micronaut-micrometer-registry-prometheus` | |
 | Logging | Logback + `logstash-logback-encoder` | JSON in deployed envs. |
@@ -444,8 +444,8 @@ seed hash in prod, so a misconfigured production start fails loudly.
 
 ```bash
 docker compose up -d                     # start postgres
-cd backend  && ./gradlew run             # backend on :8080, Flyway migrates on boot
-cd frontend && npm install && npm start  # SPA on :4200, proxying /api → :8080
+cd micronaut-user-management-service  && ./gradlew run             # backend on :8080, Flyway migrates on boot
+cd user-management-ui && npm install && npm start  # SPA on :4200, proxying /api → :8080
 ```
 
 ## 10. OpenAPI / Swagger UI
@@ -454,7 +454,8 @@ cd frontend && npm install && npm start  # SPA on :4200, proxying /api → :8080
   from `@Operation`/`@ApiResponse`/`@Schema` annotations plus the DTO types —
   no runtime cost, and it cannot drift from the code because it *is* generated
   from the code.
-- Served at `/swagger-ui`, spec at `/swagger/user-service-1.0.yml`.
+- Served at `/swagger-ui`, spec at `/swagger/user-management-service-1.0.yml`
+  (the filename comes from the `@OpenAPIDefinition` title, not the application name).
 - A `bearerAuth` security scheme is declared so Swagger UI can call protected
   endpoints with a pasted token.
 - Every documented error code from §6.6 appears as an `@ApiResponse` on the
@@ -572,8 +573,8 @@ frontend change does not run the backend suite.
 
 | Job | Trigger | Steps |
 |---|---|---|
-| `backend` | changes under `backend/` | Set up JDK 25 → Gradle cache → `./gradlew build` (compile, unit + Testcontainers integration tests, JaCoCo threshold) → upload test report |
-| `frontend` | changes under `frontend/` | Node LTS + npm cache → `npm ci` → `npm run lint` → `npm test -- --watch=false --browsers=ChromeHeadless` → `npm run build` |
+| `micronaut-user-management-service` | changes under `micronaut-user-management-service/` | Set up JDK 25 → Gradle cache → `./gradlew build` (compile, unit + Testcontainers integration tests, JaCoCo threshold) → upload test report |
+| `user-management-ui` | changes under `user-management-ui/` | Node LTS + npm cache → `npm ci` → `npm run lint` → `npm test -- --watch=false --browsers=ChromeHeadless` → `npm run build` |
 | `docker` | push to `main`, after both pass | Build both images, tag with git SHA + `latest`, push to registry |
 
 Branch protection: both build jobs must pass before merge. Testcontainers needs
@@ -619,7 +620,7 @@ assumed, or behaviour added in v1.1.
 ### 17.2 Authorisation (v1.2 — via the feature service)
 
 This service contains **no feature-flag library and no feature rules**. It asks
-[`feature-toggle-backend`](technical-spec-feature-toggle-backend.md) and applies
+[`feature-toggle-management-service`](technical-spec-feature-toggle-management-service.md) and applies
 the answer.
 
 | Concern | Implementation |
@@ -697,7 +698,7 @@ closed by §17.1.*
 ## 18. Feature toggles (v1.2) — this service is a consumer
 
 The feature capability lives in its own service and its own database
-([backend spec](technical-spec-feature-toggle-backend.md),
+([backend spec](technical-spec-feature-toggle-management-service.md),
 [functional spec](functional-spec-feature-toggle.md)). This service:
 
 - holds **no** ff4j dependency, no flag rules and no feature tables;

@@ -1,18 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
-        <option name="externalProjectPath" value="$PROJECT_DIR$/backend" />
-        <option name="gradleJvm" value="#GRADLE_JAVA_HOME" />
+        <option name="distributionType" value="LOCAL" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$/feature-toggle-management-service" />
+        <option name="gradleHome" value="/usr/local/Cellar/gradle/9.7.1/libexec" />
+        <option name="gradleJvm" value="25" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/feature-toggle-management-service" />
+          </set>
+        </option>
       </GradleProjectSettings>
       <GradleProjectSettings>
-        <option name="externalProjectPath" value="$PROJECT_DIR$/feature-toggle-backend" />
-        <option name="gradleJvm" value="#GRADLE_JAVA_HOME" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$/micronaut-user-management-service" />
+        <option name="gradleHome" value="/usr/local/Cellar/gradle/9.7.1/libexec" />
+        <option name="gradleJvm" value="25" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/micronaut-user-management-service" />
+          </set>
+        </option>
       </GradleProjectSettings>
       <GradleProjectSettings>
-        <option name="externalProjectPath" value="$PROJECT_DIR$/springboot-backend" />
-        <option name="gradleJvm" value="#GRADLE_JAVA_HOME" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$/springboot-user-management-service" />
+        <option name="gradleHome" value="/usr/local/Cellar/gradle/9.7.1/libexec" />
+        <option name="gradleJvm" value="25" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/springboot-user-management-service" />
+          </set>
+        </option>
       </GradleProjectSettings>
     </option>
   </component>

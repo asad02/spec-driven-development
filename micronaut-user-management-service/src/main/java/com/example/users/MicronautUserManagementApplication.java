@@ -22,9 +22,9 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
         scheme = "bearer",
         bearerFormat = "JWT"
 )
-public class Application {
+public class MicronautUserManagementApplication {
 
     public static void main(String[] args) {
-        Micronaut.run(Application.class, args);
+        Micronaut.run(MicronautUserManagementApplication.class, args);
     }
 }

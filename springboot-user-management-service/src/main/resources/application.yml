@@ -1,9 +1,9 @@
 spring:
   application:
-    name: springboot-user-service
+    name: springboot-user-management-service
 
   datasource:
-    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/usersdb}
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:15432/usersdb}
     username: ${DATASOURCE_USERNAME:postgres}
     password: ${DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
@@ -40,7 +40,7 @@ app:
     issuer: user-service
   cors:
     # Comma-separated. Both browser apps need an entry: the product UI and the
-    # feature-toggle-management console are different origins.
+    # feature-toggle-management-ui console are different origins.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:4300}
 
 server:
@@ -63,7 +63,7 @@ management:
         enabled: true
   metrics:
     tags:
-      application: springboot-user-service
+      application: springboot-user-management-service
 
 springdoc:
   swagger-ui:
