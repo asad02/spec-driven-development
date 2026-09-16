@@ -1,0 +1,86 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'org.springframework.boot' version '4.1.1'
+}
+
+version = '1.0'
+group = 'com.example.featuretoggle'
+
+repositories { mavenCentral() }
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(25) }
+}
+
+ext {
+    springdocVersion   = '3.1.1'
+    ff4jVersion        = '3.0.0-RC1'
+    openFeatureVersion = '1.22.1'
+}
+
+dependencies {
+    implementation platform("org.springframework.boot:spring-boot-dependencies:4.1.1")
+
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // JDBC only. ff4j's store is plain JDBC and this service owns no entities,
+    // so there is no JPA, no Hibernate and no entity/schema validation here.
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+    // The only service in the system that depends on ff4j.
+    implementation "dev.openfeature:sdk:${openFeatureVersion}"
+    implementation "org.ff4j:ff4j-core:${ff4jVersion}"
+
+    runtimeOnly 'org.postgresql:postgresql'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-parameters')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging { events 'passed', 'skipped', 'failed'; exceptionFormat 'full' }
+}
+
+// Local runs read the repo-root .env, the same file docker compose reads, so
+// `gradlew bootRun` and `docker compose up` start from one set of values instead of
+// two that drift. Compose interpolates the env file it loads, which is why a literal
+// `$` is written `$$` in there; undo that on the way in. A variable already exported
+// in the real environment wins, and a missing .env is not an error.
+def loadLocalDevEnv() {
+    def envFile = file('../.env')
+    if (!envFile.exists()) {
+        return [:]
+    }
+    envFile.readLines()
+            .findAll { line -> !line.trim().startsWith('#') && line.contains('=') }
+            .collectEntries { line ->
+                def eq = line.indexOf('=')
+                [(line.substring(0, eq).trim()): line.substring(eq + 1).trim().replace('$$', '$')]
+            }
+}
+
+def localDevEnv = loadLocalDevEnv()
+
+tasks.named('bootRun') {
+    localDevEnv.each { name, value ->
+        if (System.getenv(name) == null) {
+            environment(name, value)
+        }
+    }
+}

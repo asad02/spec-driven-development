@@ -1,0 +1,19 @@
+spring:
+  flyway:
+    # This service owns its whole schema; nothing else migrates this database.
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+app:
+  feature-admin:
+    enabled: true
+    protected-features: user-data-access,use-springboot-backend
+  jwt:
+    secret: test-only-signature-secret-at-least-256-bits-long-for-hs256-ok
+  cors:
+    allowed-origins: http://localhost:4300
+
+logging:
+  level:
+    org.testcontainers: WARN
+    com.example.featuretoggle: INFO
