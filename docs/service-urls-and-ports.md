@@ -179,16 +179,28 @@ inside the network depends on the host mapping.
 | Component | Command | Serves on | Talks to |
 |---|---|---|---|
 | Product UI | `cd user-management-ui && npm start` | `4200` | proxies `/api` → `localhost:8080` |
-| Admin console | `cd feature-toggle-management-ui && npm start` | `4300` | proxies `/api` → `localhost:8084` |
-| Any backend | `./gradlew bootRun` / `run` | `8080` | needs `DATASOURCE_URL` passed explicitly |
+| Admin console | `cd feature-toggle-management-ui && npm start` | `4300` | proxies `/api/v1/auth` → `localhost:8082`, the rest of `/api` → `localhost:8084` |
+| Any backend | `./gradlew bootRun` / `run` | `8080` | the repo-root `.env` |
 
-Running a backend locally **needs the datasource URL given explicitly** — the
-fallback in `application.yml` points at `localhost:5432`, which is a machine-specific
-guess and not where the container database listens:
+Running a backend locally needs no extra flags. The `run` and `bootRun` tasks load the
+repo-root `.env` — the same file `docker compose` reads — so `JWT_SIGNATURE_SECRET`,
+`SEED_ADMIN_PASSWORD_HASH` and the rest reach the process, and every service signs and
+verifies tokens with one secret. The datasource falls back to the host-mapped
+`localhost:15432`, so the containerised database is all that has to be up:
 
 ```bash
-./gradlew bootRun --args='--spring.datasource.url=jdbc:postgresql://127.0.0.1:15432/usersdb \
-                          --app.jwt.secret=<256-bit-secret>'
+docker compose up -d db
+cd springboot-user-management-service && ./gradlew bootRun
+```
+
+A variable already exported in the shell beats the `.env` entry, so a one-off override
+is `JWT_SIGNATURE_SECRET=<256-bit-secret> ./gradlew bootRun`. All three backends default
+to `8080`, so run one at a time or give the others `SERVER_PORT`. The admin console's
+dev server needs two at once, on the ports its proxy expects:
+
+```bash
+cd springboot-user-management-service && SERVER_PORT=8082 ./gradlew bootRun
+cd feature-toggle-management-service  && SERVER_PORT=8084 ./gradlew bootRun
 ```
 
 ## 10. Operators

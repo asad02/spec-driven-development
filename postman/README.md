@@ -35,6 +35,11 @@ the roles it revokes.
 **`opsUrl` is separate from `baseUrl` on purpose.** nginx proxies only `/api/`, so
 `/health` and `/prometheus` are not reachable on `:8081`.
 
+Those ports are the `docker compose` mapping. A backend started from Gradle instead
+(`./gradlew run` or `bootRun`, which read the repo-root `.env`) listens on `:8080`
+whichever one it is, so point `baseUrl` and `opsUrl` there and leave `featureUrl` on the
+containerised feature service.
+
 ## What each folder is for
 
 | Folder | Requests | Purpose |
@@ -53,15 +58,16 @@ The product folders (1–4, 7) pass identically against all three entry points. 
 the guarantee that the two backends are interchangeable:
 
 ```bash
-newman run user-management.postman_collection.json --env-var baseUrl=http://localhost:8080
-newman run user-management.postman_collection.json --env-var baseUrl=http://localhost:8082
-newman run user-management.postman_collection.json --env-var baseUrl=http://localhost:8081 \
-                                                   --env-var opsUrl=http://localhost:8082
+npx newman@6 run user-management.postman_collection.json --env-var baseUrl=http://localhost:8080
+npx newman@6 run user-management.postman_collection.json --env-var baseUrl=http://localhost:8082
+npx newman@6 run user-management.postman_collection.json --env-var baseUrl=http://localhost:8081 \
+                                                         --env-var opsUrl=http://localhost:8082
 ```
 
-Needs Node 20+. The `newman` at `/usr/local/bin` on this machine runs under Node 12
-and fails every request with `Invalid IP address: undefined` — that is the runner,
-not the collection.
+Run it through `npx newman@6`, not the `newman` on `PATH`: the one at `/usr/local/bin`
+is 5.3.2 and errors every request with `Invalid IP address: undefined` regardless of the
+Node version — that is the runner, not the collection. All three runs are green against
+the current stack: 61 requests, 133 assertions, no failures.
 
 ## Operators
 

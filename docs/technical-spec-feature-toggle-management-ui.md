@@ -88,7 +88,7 @@ restarted, and this application is not in the request path of the product API.
 feature-toggle-management-ui/
 ├── package.json  angular.json  tsconfig.json
 ├── Dockerfile  nginx.conf
-├── proxy.conf.json                  # dev: /api → feature-toggle-management-service:8084
+├── proxy.conf.json                  # dev: /api/v1/auth → :8082 (spring boot), /api → :8084 (feature service)
 └── src/app/
     ├── core/
     │   ├── auth/      auth.service.ts · auth.guard.ts · admin.guard.ts · jwt.interceptor.ts
@@ -230,7 +230,7 @@ screen is read-only for both roles — there is no delete, for anyone.
 
 | Image | Base | Notes |
 |---|---|---|
-| `feature-toggle-management-ui` | `node:22-alpine` build → `nginx:1.29-alpine` | Same two-stage shape as `user-management-ui/`; nginx proxies `/api/` to `springboot-user-management-service:8080` |
+| `feature-toggle-management-ui` | `node:22-alpine` build → `nginx:1.29-alpine` | Same two-stage shape as `user-management-ui/`; nginx proxies `/api/v1/auth/` to `springboot-user-management-service:8080` (it issues tokens) and the rest of `/api/` to `feature-toggle-management-service:8080` |
 
 Added to `docker-compose.yml` as a fourth service on `8083`, depending on
 `springboot-user-management-service` being healthy. It is **not** in the product request path:
